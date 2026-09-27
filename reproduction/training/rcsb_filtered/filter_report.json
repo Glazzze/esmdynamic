@@ -1,0 +1,34 @@
+{
+  "source_dir": "/bigdat2/user/sunxc/rcsb_release/rcsb",
+  "issues_csv": "reproduction/results/rcsb_integrity_20260919/issues.csv",
+  "splits": {
+    "train": {
+      "source_count": 78326,
+      "excluded_count": 151,
+      "filtered_count": 78175,
+      "source_weight_count": 78326,
+      "filtered_weight_count": 78175,
+      "weight_dtype": "torch.float32",
+      "weight_sum": 29556996.0
+    },
+    "val": {
+      "source_count": 4352,
+      "excluded_count": 5,
+      "filtered_count": 4347,
+      "source_weight_count": 4352,
+      "filtered_weight_count": 4347,
+      "weight_dtype": "torch.float32",
+      "weight_sum": 1608052.0
+    },
+    "test": {
+      "source_count": 4351,
+      "excluded_count": 8,
+      "filtered_count": 4343,
+      "source_weight_count": 4351,
+      "filtered_weight_count": 4343,
+      "weight_dtype": "torch.float32",
+      "weight_sum": 1556345.0
+    }
+  },
+  "total_excluded": 164
+}

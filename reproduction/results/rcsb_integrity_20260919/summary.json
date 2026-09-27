@@ -1,0 +1,65 @@
+{
+  "data_dir": "/bigdat2/user/sunxc/rcsb_data/rcsb",
+  "split_dir": "/bigdat2/user/sunxc/rcsb_release/rcsb",
+  "total_entries": 87029,
+  "split_counts": {
+    "train": 78326,
+    "val": 4352,
+    "test": 4351
+  },
+  "status_counts": {
+    "ok": 86865,
+    "label_count_mismatch": 164
+  },
+  "issue_count": 164,
+  "duplicates_within_split": {
+    "train": 0,
+    "val": 0,
+    "test": 0
+  },
+  "cross_split_overlap_count": 0,
+  "cross_split_overlaps": {},
+  "weight_files": {
+    "train": {
+      "path": "/bigdat2/user/sunxc/rcsb_release/rcsb/train_weights.pt",
+      "exists": true,
+      "expected": 78326,
+      "count": 78326,
+      "shape": [
+        78326
+      ],
+      "finite": true,
+      "nonnegative": true,
+      "positive_sum": true,
+      "count_matches": true
+    },
+    "val": {
+      "path": "/bigdat2/user/sunxc/rcsb_release/rcsb/val_weights.pt",
+      "exists": true,
+      "expected": 4352,
+      "count": 4352,
+      "shape": [
+        4352
+      ],
+      "finite": true,
+      "nonnegative": true,
+      "positive_sum": true,
+      "count_matches": true
+    },
+    "test": {
+      "path": "/bigdat2/user/sunxc/rcsb_release/rcsb/test_weights.pt",
+      "exists": true,
+      "expected": 4351,
+      "count": 4351,
+      "shape": [
+        4351
+      ],
+      "finite": true,
+      "nonnegative": true,
+      "positive_sum": true,
+      "count_matches": true
+    }
+  },
+  "elapsed_seconds": 2025.9462751848623,
+  "issues_csv": "reproduction/results/rcsb_integrity_20260919/issues.csv"
+}

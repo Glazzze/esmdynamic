@@ -1,760 +1,775 @@
-"""
-New training script for ESMDynamic (works with the uploaded model/loss/dataset).
-Saves only trained heads (best val loss and last checkpoint).
+#!/usr/bin/env python3
+"""Reproducible two-stage training for ESMDynamic.
+
+Stage 1 uses ``--dataset-type rcsb`` and trains a one-condition dynamic head.
+Stage 2 uses ``--dataset-type mdcath`` and can initialize its five-condition
+dynamic head from the stage-1 checkpoint with ``--init-checkpoint``.
 """
 
-import os
+from __future__ import annotations
+
 import argparse
-from datetime import datetime
+import csv
+import json
 import math
+import os
+import random
+import shlex
+import time
+from contextlib import nullcontext
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
-import torch
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
 import numpy as np
+import torch
+import torch.distributed as dist
+import torch.nn.functional as F
+from torch.nn.parallel import DistributedDataParallel
+from torch.utils.data import DataLoader, DistributedSampler, Sampler, Subset
 
-# ---------- Package imports ----------
-# Assumes the project is installed as a package so these imports resolve
+from esm.esmfold.v1.misc import batch_encode_sequences
 from esm.esmdynamic.esmdynamic import ESMDynamic
-import esm.esmdynamic.training.loss as loss_mod
-from esm.esmdynamic.training.data_reader import DynContactDataset
+from esm.esmdynamic.training.data_reader import (
+    ESMDynamicDataset,
+    collate_samples,
+    read_identifiers,
+)
+
+try:
+    from torch.utils.tensorboard import SummaryWriter
+except ImportError:  # Training remains usable without the optional UI package.
+    SummaryWriter = None
 
 
-# ----------------- Helpers: datasets / loaders -----------------
-def init_datasets(
-    training_identifiers_file,
-    validation_identifiers_file,
-    data_dir,
-    crop_length=256,
-    training_weight_file="../../mdcath_featurization/splits/splits_20_id_cutoff/train_weights.pt",
-    validation_weight_file="../../mdcath_featurization/splits/splits_20_id_cutoff/val_weights.pt",
-):
-    cluster_train = list(np.loadtxt(training_identifiers_file, dtype=str))
-    cluster_val = list(np.loadtxt(validation_identifiers_file, dtype=str))
-
-    training_weights = torch.load(training_weight_file) if training_weight_file is not None else None
-    validation_weights = torch.load(validation_weight_file) if validation_weight_file is not None else None
-
-    training_set = DynContactDataset(
-        data_dir=data_dir,
-        identifiers=cluster_train,
-        crop_length=crop_length,
-    )
-    if training_weights is not None:
-        training_set.weights = training_weights
-
-    validation_set = DynContactDataset(
-        data_dir=data_dir,
-        identifiers=cluster_val,
-        crop_length=crop_length,
-    )
-    if validation_weights is not None:
-        validation_set.weights = validation_weights
-
-    return training_set, validation_set
+LOSS_NAMES = {
+    "dynamic_logits",
+    "dynamic_confidence",
+    "frequency_pred",
+    "frequency_residual_pred",
+    "kinetic_logits",
+    "kinetic_confidence",
+}
 
 
-def init_data_loaders(training_set, validation_set, batch_size=4, train_samples_per_epoch=10000, val_samples_per_epoch=1000):
-    training_sampler = training_set.weighted_random_sampler(num_samples=train_samples_per_epoch)
-    training_loader = DataLoader(training_set, batch_size=batch_size, sampler=training_sampler, collate_fn=training_set.custom_collate_fn)
-
-    validation_sampler = validation_set.weighted_random_sampler(num_samples=val_samples_per_epoch)
-    validation_loader = DataLoader(validation_set, batch_size=batch_size, sampler=validation_sampler, collate_fn=validation_set.custom_collate_fn)
-
-    return training_loader, validation_loader
+def distributed() -> bool:
+    return int(os.environ.get("WORLD_SIZE", "1")) > 1
 
 
-# ----------------- Head selection / model init -----------------
-def select_prefixes_from_loss_heads(loss_heads):
-    prefixes = set()
-    for h in loss_heads:
-        if "_" in h:
-            prefixes.add(h.split("_")[0])
-        else:
-            prefixes.add(h)
-    return prefixes
+def rank() -> int:
+    return dist.get_rank() if dist.is_initialized() else 0
 
 
-def init_model(chunk_size=256, device="cuda", pretrained=None, heads_to_load=None):
-    model = ESMDynamic(load_esmfold=True, heads_to_load=heads_to_load)
-    if pretrained:
-        sd = torch.load(pretrained, map_location="cpu")
-        model.load_state_dict(sd, strict=False)
-    if device == "cuda":
-        model.cuda()
-    model.set_chunk_size(chunk_size)
-    return model
+def world_size() -> int:
+    return dist.get_world_size() if dist.is_initialized() else 1
 
 
-def init_optimizer_for_heads(model, head_prefixes, lr=1e-4):
-    params = []
-    for h in head_prefixes:
-        if h not in model.heads:
-            raise RuntimeError(f"Head '{h}' not found. Available: {list(model.heads.keys())}")
-        params += list(model.heads[h].parameters())
-    if len(params) == 0:
-        raise RuntimeError("No parameters selected for optimizer.")
-    return torch.optim.Adam(params, lr=lr)
+def is_main_process() -> bool:
+    return rank() == 0
 
 
-def init_writer(outpath):
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    writer = SummaryWriter(os.path.join(outpath, "runs", f"trainer_{timestamp}"))
-    return timestamp, writer
+def main_print(*values: Any, **kwargs: Any) -> None:
+    if is_main_process():
+        print(*values, **kwargs)
 
 
-def save_head_state_dicts(model, head_prefixes, outpath, prefix_label, timestamp):
-    for h in sorted(head_prefixes):
-        fname = os.path.join(outpath, f"{h}_head_{prefix_label}_{timestamp}.pt")
-        sd = model.heads[h].state_dict()
-        torch.save({f"heads.{h}.{k}": v for k, v in sd.items()}, fname)
-        print(f"Saved head '{h}' -> {fname}")
+class DistributedWeightedSampler(Sampler[int]):
+    """Deterministic weighted draws partitioned across DDP ranks."""
 
+    def __init__(self, weights: torch.Tensor, total_samples: int, seed: int) -> None:
+        self.weights = torch.as_tensor(weights, dtype=torch.double, device="cpu")
+        self.total_samples = total_samples
+        self.seed = seed
+        self.epoch = 0
+        self.samples_per_rank = math.ceil(total_samples / world_size())
+        self.padded_total = self.samples_per_rank * world_size()
 
-# ----------------- Target creation helpers -----------------
-def _length_masks_from_lengths(lengths, Lmax, device):
-    """
-    Returns:
-      mask2d: [B, Lmax, Lmax] boolean mask
-      mask1d: [B, Lmax] boolean mask
-    """
-    B = lengths.shape[0]
-    mask2d = torch.zeros((B, Lmax, Lmax), dtype=torch.bool, device=device)
-    mask1d = torch.zeros((B, Lmax), dtype=torch.bool, device=device)
-    for i, Li in enumerate(lengths):
-        Li = int(Li.item())
-        mask2d[i, :Li, :Li] = True
-        mask1d[i, :Li] = True
-    return mask2d, mask1d
+    def set_epoch(self, epoch: int) -> None:
+        self.epoch = epoch
 
-
-def build_confidence_targets_dynamic(pred_pairs, true_pairs, lengths):
-    """
-    pred_pairs: [B, C, L, L] logits (or probabilities). We'll threshold at 0.5 if logits -> sigmoid.
-    true_pairs: [B, C, L, L] (0/1)
-    produce conf_target: [B, C, L] per-residue accuracy across partner residues.
-    """
-    device = true_pairs.device
-    B, C, L, _ = true_pairs.shape
-
-    # Convert logits to binary preds if needed
-    if pred_pairs.dtype.is_floating_point:
-        probs = torch.sigmoid(pred_pairs)
-        pred_bin = (probs > 0.5).long()
-    else:
-        pred_bin = pred_pairs.long()
-
-    conf_target = torch.zeros((B, C, L), dtype=torch.float32, device=device)
-
-    for b in range(B):
-        Lb = int(lengths[b].item())
-        if Lb == 0:
-            continue
-        # For each residue i, compute accuracy across j in 0..Lb-1
-        tp = (pred_bin[b, :, :Lb, :Lb] == true_pairs[b, :, :Lb, :Lb]).float()  # [C, Lb, Lb]
-        # accuracy for residue i is mean over axis=1 (partners), so for residue i: mean over tp[:, i, :]
-        # We want conf_target[b, c, i] = mean(tp[c, i, :])
-        conf_target[b, :, :Lb] = tp.mean(dim=2)  # tp.shape [C, Lb, Lb] -> mean over last dim -> [C, Lb]
-    return conf_target  # [B, C, L]
-
-
-def build_confidence_targets_kinetic(pred_logits, true_labels, lengths):
-    """
-    pred_logits: [B, C, R, L, L, K] logits for K classes
-    true_labels: [B, C, R, L, L] integer labels
-    produce conf_target: [B, C, R, L] per-rate per-residue accuracy across partner residues.
-    """
-    device = true_labels.device
-    B, C, R, L, _, K = pred_logits.shape
-    preds = pred_logits.argmax(dim=-1)  # [B, C, R, L, L]
-    conf_target = torch.zeros((B, C, R, L), dtype=torch.float32, device=device)
-
-    for b in range(B):
-        Lb = int(lengths[b].item())
-        if Lb == 0:
-            continue
-        # For each rate r and residue i: accuracy across j
-        for r in range(R):
-            # equality map [C, Lb, Lb]
-            eq = (preds[b, :, r, :Lb, :Lb] == true_labels[b, :, r, :Lb, :Lb]).float()
-            # per residue accuracy for residue i: mean over partners axis=2
-            conf_target[b, :, r, :Lb] = eq.mean(dim=2)
-    return conf_target  # [B, C, R, L]
-
-
-def build_frequency_residual_target(freq_pred, freq_true):
-    """
-    Both freq_pred / freq_true: [B, C, L, L]
-    Target for residual head is absolute difference.
-    """
-    return torch.abs(freq_true - freq_pred)
-
-
-# ----------------- Metrics -----------------
-def safe_div(numer, denom):
-    return numer / denom if denom != 0 else 0.0
-
-
-def metrics_dynamic_batch(pred_logits, true_pairs, lengths):
-    """
-    Compute accuracy, precision, recall (TPR), F1, balanced acc for the batch.
-    - pred_logits: [B, C, L, L] (logits or probabilities)
-    - true_pairs: [B, C, L, L] (0/1)
-    Returns dict with scalars (batch-averaged).
-    """
-    device = true_pairs.device
-    B, C, L, _ = true_pairs.shape
-
-    # convert logits -> binary
-    if pred_logits.dtype.is_floating_point:
-        probs = torch.sigmoid(pred_logits)
-        preds = (probs > 0.5).long()
-    else:
-        preds = pred_logits.long()
-
-    total_TP = total_FP = total_FN = total_TN = 0
-    total_counts = 0
-
-    for b in range(B):
-        Lb = int(lengths[b].item())
-        if Lb == 0:
-            continue
-        t = true_pairs[b, :, :Lb, :Lb].reshape(-1)
-        p = preds[b, :, :Lb, :Lb].reshape(-1)
-        total_counts += t.numel()
-        TP = int(((p == 1) & (t == 1)).sum().item())
-        TN = int(((p == 0) & (t == 0)).sum().item())
-        FP = int(((p == 1) & (t == 0)).sum().item())
-        FN = int(((p == 0) & (t == 1)).sum().item())
-        total_TP += TP
-        total_TN += TN
-        total_FP += FP
-        total_FN += FN
-
-    # compute metrics
-    accuracy = safe_div((total_TP + total_TN), (total_counts)) if total_counts > 0 else 0.0
-    precision = safe_div(total_TP, (total_TP + total_FP)) if (total_TP + total_FP) > 0 else 0.0
-    recall = safe_div(total_TP, (total_TP + total_FN)) if (total_TP + total_FN) > 0 else 0.0
-    f1 = safe_div(2 * precision * recall, (precision + recall)) if (precision + recall) > 0 else 0.0
-    # balanced accuracy = (TPR + TNR)/2
-    tpr = recall
-    tnr = safe_div(total_TN, (total_TN + total_FP)) if (total_TN + total_FP) > 0 else 0.0
-    bal_acc = 0.5 * (tpr + tnr)
-
-    return {
-        "accuracy": accuracy,
-        "precision": precision,
-        "recall": recall,
-        "f1": f1,
-        "bal_acc": bal_acc,
-    }
-
-
-def metrics_kinetic_batch(logits, true_labels, lengths, n_classes=None):
-    """
-    logits: [B, C, R, L, L, K]
-    true_labels: [B, C, R, L, L] (0..K-1)
-    We compute:
-      - overall accuracy
-      - macro precision, macro recall, macro F1 (average over classes)
-      - balanced accuracy (mean recall across classes)
-    """
-    device = true_labels.device
-    B, C, R, L, _, K = logits.shape
-    preds = logits.argmax(dim=-1)  # [B, C, R, L, L]
-
-    # accumulate per-class counts
-    TP_per_class = torch.zeros(K, device=device)
-    P_pred_per_class = torch.zeros(K, device=device)
-    P_true_per_class = torch.zeros(K, device=device)
-    total_correct = 0
-    total_count = 0
-
-    for b in range(B):
-        Lb = int(lengths[b].item())
-        if Lb == 0:
-            continue
-        true_flat = true_labels[b, :, :, :Lb, :Lb].reshape(-1)
-        pred_flat = preds[b, :, :, :Lb, :Lb].reshape(-1)
-        total_count += true_flat.numel()
-        total_correct += int((true_flat == pred_flat).sum().item())
-        for k in range(K):
-            TP_k = int(((pred_flat == k) & (true_flat == k)).sum().item())
-            P_pred_k = int((pred_flat == k).sum().item())
-            P_true_k = int((true_flat == k).sum().item())
-            TP_per_class[k] += TP_k
-            P_pred_per_class[k] += P_pred_k
-            P_true_per_class[k] += P_true_k
-
-    accuracy = safe_div(total_correct, total_count) if total_count > 0 else 0.0
-
-    precisions = []
-    recalls = []
-    f1s = []
-    for k in range(K):
-        tp = TP_per_class[k].item()
-        pp = P_pred_per_class[k].item()
-        pt = P_true_per_class[k].item()
-        prec_k = safe_div(tp, pp) if pp > 0 else 0.0
-        rec_k = safe_div(tp, pt) if pt > 0 else 0.0
-        f1_k = safe_div(2 * prec_k * rec_k, (prec_k + rec_k)) if (prec_k + rec_k) > 0 else 0.0
-        precisions.append(prec_k)
-        recalls.append(rec_k)
-        f1s.append(f1_k)
-
-    macro_precision = float(np.mean(precisions)) if len(precisions) > 0 else 0.0
-    macro_recall = float(np.mean(recalls)) if len(recalls) > 0 else 0.0
-    macro_f1 = float(np.mean(f1s)) if len(f1s) > 0 else 0.0
-    balanced_acc = macro_recall
-
-    return {
-        "accuracy": accuracy,
-        "macro_precision": macro_precision,
-        "macro_recall": macro_recall,
-        "macro_f1": macro_f1,
-        "bal_acc": balanced_acc,
-    }
-
-
-def metrics_frequency_batch(pred, true, lengths):
-    """
-    pred/true: [B, C, L, L]
-    Return RMSE computed across valid entries in batch (single scalar).
-    """
-    device = true.device
-    B, C, L, _ = true.shape
-    se_sum = 0.0
-    count = 0
-    for b in range(B):
-        Lb = int(lengths[b].item())
-        if Lb == 0:
-            continue
-        diff = (pred[b, :, :Lb, :Lb] - true[b, :, :Lb, :Lb]).reshape(-1)
-        se_sum += float((diff ** 2).sum().item())
-        count += diff.numel()
-    mse = (se_sum / count) if count > 0 else 0.0
-    rmse = math.sqrt(mse)
-    return {"rmse": rmse}
-
-
-# ----------------- Training / validation steps -----------------
-def build_outputs_and_targets_for_loss(structure, dyn, kin, freq, lengths, loss_heads, device, kin_class_weights):
-    """
-    Build outputs_for_loss and targets_for_loss dicts keyed by the exact loss names expected
-    by loss_mod.esmdynamic_loss (e.g. 'dynamic_logits', 'kinetic_logits', ...).
-    Also construct dynamic confidence targets and frequency residual targets when requested.
-    """
-    outputs = {}
-    targets = {}
-
-    # Move label tensors to device
-    dyn = dyn.to(device)
-    kin = kin.to(device)
-    freq = freq.to(device)
-    lengths = lengths.to(device)
-
-    # Extract main logits/preds if present in structure
-    # Map expected loss keys to structure keys if needed
-    # dynamic_logits -> structure['dynamic_logits']
-    # dynamic_confidence -> structure['dynamic_confidence']
-    # kinetic_logits -> structure['kinetic_logits']
-    # kinetic_confidence -> structure['kinetic_confidence'] (or we will compute)
-    # frequency_pred -> structure['frequency_pred'] (model uses <name>_pred)
-    # frequency_residual_pred -> structure['frequency_residual_pred']
-
-    for h in loss_heads:
-        prefix = h.split("_")[0]
-        if h == "dynamic_logits":
-            # prefer direct structure key
-            if "dynamic_logits" in structure:
-                outputs[h] = structure["dynamic_logits"]
-            else:
-                # try alternate names
-                if f"{prefix}_logits" in structure:
-                    outputs[h] = structure[f"{prefix}_logits"]
-            targets[h] = dyn
-        elif h == "dynamic_confidence":
-            # Model may provide dynamic_confidence under 'dynamic_confidence'
-            if f"{prefix}_confidence" in structure:
-                outputs[h] = structure[f"{prefix}_confidence"]  # [B, C, L]
-            # build target from pair preds (use logits if available)
-            # determine pair predictions (logits or prob)
-            if f"{prefix}_logits" in structure:
-                pred_pairs = structure[f"{prefix}_logits"]  # [B, C, L, L]
-            else:
-                raise RuntimeError("Cannot compute dynamic confidence target: pair predictions missing in model output.")
-            targets[h] = build_confidence_targets_dynamic(pred_pairs.detach(), dyn, lengths)
-        elif h == "kinetic_logits":
-            if "kinetic_logits" in structure:
-                outputs[h] = structure["kinetic_logits"]  # [B, C, R, L, L, K]
-            else:
-                if f"{prefix}_logits" in structure:
-                    outputs[h] = structure[f"{prefix}_logits"]
-            targets[h] = kin
-        elif h == "kinetic_confidence":
-            # Model may provide kinetic_confidence under 'kinetic_confidence' [B,C,L]
-            if f"{prefix}_confidence" in structure:
-                outputs[h] = structure[f"{prefix}_confidence"]  # [B, C, L]
-            # compute conf_target per rate from kinetic logits/preds vs kin labels
-            if "kinetic_logits" in structure:
-                kin_logits = structure["kinetic_logits"]  # [B,C,R,L,L,K]
-            elif f"{prefix}_logits" in structure:
-                kin_logits = structure[f"{prefix}_logits"]
-            else:
-                raise RuntimeError("Cannot compute kinetic confidence target: kinetic logits missing.")
-            conf_per_rate = build_confidence_targets_kinetic(kin_logits.detach(), kin, lengths)
-            targets[h] = conf_per_rate.mean(dim=2)
-        elif h == "frequency_pred":
-            # model provides frequency prediction under 'frequency_pred' (or 'frequency_pred' from model.heads)
-            key = f"{prefix}_pred"
-            if key in structure:
-                outputs[h] = structure[key]
-            elif f"{prefix}_value" in structure:
-                outputs[h] = structure[f"{prefix}_value"]
-            else:
-                raise RuntimeError("frequency prediction missing from model outputs.")
-            targets[h] = freq
-        elif h == "frequency_residual_pred":
-            # model provides residual prediction under 'frequency_residual_pred'
-            key = f"{prefix}_residual_pred"
-            if key in structure:
-                outputs[h] = structure[key]
-            else:
-                raise RuntimeError("frequency residual prediction missing from model outputs.")
-            # build target as absolute difference between freq_true and freq_pred
-            # freq_pred for this calculation should be outputs['frequency_pred'] if available
-            freq_pred = None
-            if "frequency_pred" in outputs:
-                freq_pred = outputs["frequency_pred"]
-            else:
-                # try to find in structure
-                if f"{prefix}_pred" in structure:
-                    freq_pred = structure[f"{prefix}_pred"]
-                elif f"{prefix}_value" in structure:
-                    freq_pred = structure[f"{prefix}_value"]
-            if freq_pred is None:
-                raise RuntimeError("Cannot construct frequency_residual target: frequency_pred not found.")
-            targets[h] = build_frequency_residual_target(freq_pred.detach(), freq)
-        else:
-            raise RuntimeError(f"Unsupported loss head requested: {h}")
-
-    return outputs, targets
-
-
-def train_one_epoch(
-    training_loader,
-    optimizer,
-    model,
-    epoch,
-    writer,
-    device="cuda",
-    batch_accum=1,
-    alpha=0.25,
-    gamma=2,
-    outpath="./",
-    timestamp="",
-    loss_heads=None,
-    kin_class_weights=None,
-):
-    model.train()
-    running_loss = 0.0
-    loss_norm = 0
-    # accumulate metrics per epoch for logging
-    epoch_metrics = {h: [] for h in loss_heads}
-
-    autocast_enabled = (device == "cuda")
-
-    for i, data in enumerate(training_loader):
-        sequences, dyn, kin, freq, lengths = data
-        # forward
-        with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=autocast_enabled):
-            structure = model.forward_from_seq(sequences)
-
-        # Build outputs & targets for requested loss heads
-        outputs_for_loss, targets_for_loss = build_outputs_and_targets_for_loss(
-            structure, dyn, kin, freq, lengths, loss_heads, device, kin_class_weights
+    def __iter__(self):
+        generator = torch.Generator().manual_seed(self.seed + self.epoch)
+        indices = torch.multinomial(
+            self.weights, self.padded_total, replacement=True, generator=generator
         )
+        return iter(indices[rank():self.padded_total:world_size()].tolist())
 
-        # ensure kin_class_weights in local device and correct dtype
-        kin_weights = None
-        if kin_class_weights is not None:
-            for h in loss_heads:
-                if "kinetic_logits" in h and h in outputs_for_loss:
-                    logits_dtype = outputs_for_loss[h].dtype   # usually bfloat16 under autocast
-                    kin_weights = kin_class_weights.to(device=device, dtype=logits_dtype)
-                    break
-
-        loss = loss_mod.esmdynamic_loss(outputs_for_loss, targets_for_loss, lengths.to(device), active_heads=loss_heads, kin_class_weights=kin_weights, alpha=alpha, gamma=gamma)
-        loss = loss / batch_accum
-        loss.backward()
-
-        if ((i + 1) % batch_accum == 0) or (i + 1 == len(training_loader)):
-            optimizer.step()
-            optimizer.zero_grad()
-
-            running_loss += loss.item()
-            loss_norm += 1
-
-            # compute and log metrics for each requested head
-            # dynamic metrics
-            if "dynamic_logits" in loss_heads and "dynamic_logits" in outputs_for_loss:
-                dyn_metrics = metrics_dynamic_batch(outputs_for_loss["dynamic_logits"], targets_for_loss.get("dynamic_logits"), lengths)
-                epoch_metrics["dynamic_logits"].append(dyn_metrics)
-                # Log to tensorboard
-                step = epoch * len(training_loader) + i
-                writer.add_scalar("dynamic/loss_train_batch", loss.item(), step)
-                writer.add_scalar("dynamic/accuracy/train", dyn_metrics["accuracy"], step)
-                writer.add_scalar("dynamic/precision/train", dyn_metrics["precision"], step)
-                writer.add_scalar("dynamic/recall/train", dyn_metrics["recall"], step)
-                writer.add_scalar("dynamic/f1/train", dyn_metrics["f1"], step)
-                writer.add_scalar("dynamic/bal_acc/train", dyn_metrics["bal_acc"], step)
-
-            # kinetic metrics
-            if "kinetic_logits" in loss_heads and "kinetic_logits" in outputs_for_loss:
-                # infer K from logits shape
-                kin_logits = outputs_for_loss["kinetic_logits"]
-                K = kin_logits.shape[-1]
-                kin_metrics = metrics_kinetic_batch(kin_logits, targets_for_loss.get("kinetic_logits"), lengths, n_classes=K)
-                epoch_metrics["kinetic_logits"].append(kin_metrics)
-                step = epoch * len(training_loader) + i
-                writer.add_scalar("kinetic/loss_train_batch", loss.item(), step) # Repeated value
-                writer.add_scalar("kinetic/accuracy/train", kin_metrics["accuracy"], step)
-                writer.add_scalar("kinetic/macro_precision/train", kin_metrics["macro_precision"], step)
-                writer.add_scalar("kinetic/macro_recall/train", kin_metrics["macro_recall"], step)
-                writer.add_scalar("kinetic/macro_f1/train", kin_metrics["macro_f1"], step)
-                writer.add_scalar("kinetic/bal_acc/train", kin_metrics["bal_acc"], step)
-
-            # frequency metrics
-            if "frequency_pred" in loss_heads and "frequency_pred" in outputs_for_loss:
-                freq_metrics = metrics_frequency_batch(outputs_for_loss["frequency_pred"], targets_for_loss.get("frequency_pred"), lengths)
-                epoch_metrics["frequency_pred"].append(freq_metrics)
-                step = epoch * len(training_loader) + i
-                writer.add_scalar("frequency/loss_training_batch", loss.item(), step) # Repeated value
-                writer.add_scalar("frequency/rmse/train", freq_metrics["rmse"], step)
-
-            print(f"[Train] Epoch {epoch+1} batch {i+1}/{len(training_loader)} loss {loss.item():.6f}")
-
-    avg_loss = (running_loss / loss_norm) if loss_norm > 0 else 0.0
-
-    # Average epoch metrics (mean of per-batch metrics)
-    aggregated_metrics = {}
-    for h in loss_heads:
-        list_metrics = epoch_metrics.get(h, [])
-        if not list_metrics:
-            aggregated_metrics[h] = {}
-            continue
-        # each item is a dict -> compute mean per-key
-        keys = list_metrics[0].keys()
-        agg = {}
-        for k in keys:
-            vals = [m[k] for m in list_metrics]
-            agg[k] = float(np.mean(vals))
-        aggregated_metrics[h] = agg
-
-    return avg_loss, aggregated_metrics
+    def __len__(self) -> int:
+        return self.samples_per_rank
 
 
-def compute_validation(
-    validation_loader,
-    model,
-    epoch_number,
-    writer,
-    training_loss,
-    device="cuda",
-    alpha=0.25,
-    gamma=2,
-    loss_heads=None,
-    kin_class_weights=None,
-):
-    model.eval()
-    running_vloss = 0.0
-    val_batches = 0
-    epoch_metrics = {h: [] for h in loss_heads}
-
-    autocast_enabled = (device == "cuda")
-
-    with torch.no_grad(), torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=autocast_enabled):
-        for i, data in enumerate(validation_loader):
-            sequences, dyn, kin, freq, lengths = data
-            structure = model.forward_from_seq(sequences)
-
-            outputs_for_loss, targets_for_loss = build_outputs_and_targets_for_loss(
-                structure, dyn, kin, freq, lengths, loss_heads, model.device, kin_class_weights
-            )
-
-             # ensure kin_class_weights in local device and correct dtype
-            kin_weights = None
-            if kin_class_weights is not None:
-                for h in loss_heads:
-                    if "kinetic_logits" in h and h in outputs_for_loss:
-                        logits_dtype = outputs_for_loss[h].dtype   # usually bfloat16 under autocast
-                        kin_weights = kin_class_weights.to(device=device, dtype=logits_dtype)
-                        break
-
-            vloss = loss_mod.esmdynamic_loss(outputs_for_loss, targets_for_loss, lengths.to(model.device), active_heads=loss_heads, kin_class_weights=kin_weights, alpha=alpha, gamma=gamma)
-            running_vloss += vloss.item()
-            val_batches += 1
-
-            # metrics same as train
-            if "dynamic_logits" in loss_heads and "dynamic_logits" in outputs_for_loss:
-                dyn_metrics = metrics_dynamic_batch(outputs_for_loss["dynamic_logits"], targets_for_loss.get("dynamic_logits"), lengths)
-                epoch_metrics["dynamic_logits"].append(dyn_metrics)
-            if "kinetic_logits" in loss_heads and "kinetic_logits" in outputs_for_loss:
-                K = outputs_for_loss["kinetic_logits"].shape[-1]
-                kin_metrics = metrics_kinetic_batch(outputs_for_loss["kinetic_logits"], targets_for_loss.get("kinetic_logits"), lengths, n_classes=K)
-                epoch_metrics["kinetic_logits"].append(kin_metrics)
-            if "frequency_pred" in loss_heads and "frequency_pred" in outputs_for_loss:
-                freq_metrics = metrics_frequency_batch(outputs_for_loss["frequency_pred"], targets_for_loss.get("frequency_pred"), lengths)
-                epoch_metrics["frequency_pred"].append(freq_metrics)
-
-    avg_vloss = running_vloss / (val_batches if val_batches > 0 else 1)
-
-    # Aggregate metrics
-    aggregated_metrics = {}
-    for h in loss_heads:
-        list_metrics = epoch_metrics.get(h, [])
-        if not list_metrics:
-            aggregated_metrics[h] = {}
-            continue
-        keys = list_metrics[0].keys()
-        agg = {}
-        for k in keys:
-            vals = [m[k] for m in list_metrics]
-            agg[k] = float(np.mean(vals))
-            # log to tensorboard
-            writer.add_scalar(f"{h}/{k}/val", agg[k], epoch_number + 1)
-        aggregated_metrics[h] = agg
-
-    # also log combined train vs val loss
-    writer.add_scalars('Training vs. Validation Loss', {'Training': training_loss, 'Validation': avg_vloss}, epoch_number + 1)
-    print(f"[Val] Epoch {epoch_number+1} train_loss {training_loss:.6f} val_loss {avg_vloss:.6f}")
-
-    return avg_vloss, aggregated_metrics
+def parse_list(value: str) -> list[str]:
+    return shlex.split(value.replace(",", " "))
 
 
-def save_run_metadata(outpath, args, timestamp):
-    metadata_file = os.path.join(outpath, f"run_metadata_{timestamp}.txt")
-    script_path = os.path.realpath(__file__)
-    with open(metadata_file, "w") as f:
-        f.write(f"Run Timestamp: {timestamp}\n")
-        f.write(f"Executed Script: {script_path}\n")
-        f.write("Parameters:\n")
-        for arg, value in vars(args).items():
-            f.write(f"  {arg}: {value}\n")
-    print(f"Run metadata saved to: {metadata_file}")
-
-
-def get_args():
-    import shlex
-
-    def parse_list(arg):
-        return shlex.split(arg.replace(",", " "))
-
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(fromfile_prefix_chars="@")
-    parser.add_argument("--train_identifiers_file", type=str, required=True)
-    parser.add_argument("--val_identifiers_file", type=str, required=True)
-    parser.add_argument("--data_dir", type=str, required=True)
-    parser.add_argument("--outpath", type=str, required=True)
-    parser.add_argument("--batch_size", type=int, default=4)
-    parser.add_argument("--batch_accum", type=int, default=8)
-    parser.add_argument("--epochs", type=int, default=1)
-    parser.add_argument("--train_samples_per_epoch", type=int, default=10000)
-    parser.add_argument("--val_samples_per_epoch", type=int, default=1000)
-    parser.add_argument("--pretrained", type=str, default=None)
-    parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--loss_heads", type=parse_list, default=[], required=True, help="Loss heads to use (e.g. dynamic_logits kinetic_logits frequency_pred). Must match keys used by loss.esmdynamic_loss.")
-    parser.add_argument("--kin_class_weights", type=str, default=None, help="Optional path to torch-saved kinetics class weights (tensor shape [2,K])")
-    parser.add_argument("--chunk_size", type=int, default=256)
-    parser.add_argument("--alpha", type=float, default=0.25)
+    parser.add_argument("--dataset-type", choices=("rcsb", "mdcath"), required=True)
+    parser.add_argument("--train-identifiers-file", "--train_identifiers_file", required=True)
+    parser.add_argument("--val-identifiers-file", "--val_identifiers_file", required=True)
+    parser.add_argument("--data-dir", "--data_dir", required=True)
+    parser.add_argument("--outpath", required=True)
+    parser.add_argument("--train-weight-file", default=None)
+    parser.add_argument("--val-weight-file", default=None)
+    parser.add_argument("--kin-class-weights", "--kin_class_weights", default=None)
+    parser.add_argument("--loss-heads", "--loss_heads", type=parse_list, required=True)
+    parser.add_argument("--init-checkpoint", "--pretrained", default=None)
+    parser.add_argument("--resume", default=None)
+    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--batch-size", "--batch_size", type=int, default=1)
+    parser.add_argument("--batch-accum", "--batch_accum", type=int, default=16)
+    parser.add_argument("--crop-length", type=int, default=256)
+    parser.add_argument("--train-samples-per-epoch", "--train_samples_per_epoch", type=int, default=0)
+    parser.add_argument("--val-samples-per-epoch", "--val_samples_per_epoch", type=int, default=0)
+    parser.add_argument("--num-workers", type=int, default=0)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--weight-decay", type=float, default=0.0)
+    parser.add_argument("--alpha", type=float, default=0.85)
     parser.add_argument("--gamma", type=float, default=2.0)
+    parser.add_argument("--chunk-size", "--chunk_size", type=int, default=128)
+    parser.add_argument("--num-recycles", type=int, default=3)
+    parser.add_argument("--metric-condition", type=int, default=0)
+    parser.add_argument("--aux-head-start-epoch", type=int, default=11,
+                        help="1-based epoch that enables confidence/residual losses")
+    parser.add_argument("--early-stopping-patience", type=int, default=10)
+    parser.add_argument("--weighted-random-validation", action="store_true")
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--device", default="cuda")
+    parser.add_argument("--no-amp", action="store_true")
+    parser.add_argument("--deterministic", action="store_true")
     return parser.parse_args()
 
 
-def main():
-    args = get_args()
-    os.makedirs(args.outpath, exist_ok=True)
+def seed_everything(seed: int, deterministic: bool) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    if deterministic:
+        torch.use_deterministic_algorithms(True, warn_only=True)
+        torch.backends.cudnn.benchmark = False
 
-    training_set, validation_set = init_datasets(
-        args.train_identifiers_file,
-        args.val_identifiers_file,
-        args.data_dir,
-        crop_length=256,
+
+def load_tensor(path: str | None) -> torch.Tensor | None:
+    if path is None:
+        return None
+    try:
+        return torch.load(path, map_location="cpu", weights_only=True)
+    except TypeError:
+        return torch.load(path, map_location="cpu")
+
+
+def make_loaders(args: argparse.Namespace) -> tuple[DataLoader, DataLoader, Any, Any]:
+    train_ids = read_identifiers(args.train_identifiers_file)
+    val_ids = read_identifiers(args.val_identifiers_file)
+    train_weights = load_tensor(args.train_weight_file)
+    val_weights = load_tensor(args.val_weight_file)
+    train_set = ESMDynamicDataset(
+        args.data_dir, train_ids, args.crop_length, args.dataset_type, True, train_weights
     )
-
-    training_loader, validation_loader = init_data_loaders(
-        training_set,
-        validation_set,
-        batch_size=args.batch_size,
-        train_samples_per_epoch=args.train_samples_per_epoch,
-        val_samples_per_epoch=args.val_samples_per_epoch,
+    val_set = ESMDynamicDataset(
+        args.data_dir, val_ids, args.crop_length, args.dataset_type, False, val_weights
     )
+    train_count = args.train_samples_per_epoch or len(train_set)
+    # generator=None intentionally uses the checkpointed global torch RNG.
+    if distributed():
+        train_weights_for_sampler = train_set.weights
+        if train_weights_for_sampler is None:
+            train_weights_for_sampler = torch.ones(len(train_set), dtype=torch.double)
+        train_sampler = DistributedWeightedSampler(
+            train_weights_for_sampler, train_count, args.seed
+        )
+    else:
+        train_sampler = train_set.weighted_random_sampler(train_count)
 
-    loss_heads = args.loss_heads
-    prefixes = sorted(list(select_prefixes_from_loss_heads(loss_heads)))
-    print("Requested loss heads:", loss_heads)
-    print("Will load model heads (prefixes):", prefixes)
-
-    kin_class_weights = None
-    if args.kin_class_weights:
-        kin_class_weights = torch.load(args.kin_class_weights, map_location="cpu")
-
-    model = init_model(chunk_size=args.chunk_size, device=args.device, pretrained=args.pretrained, heads_to_load=prefixes)
-
-    # Freeze trunk
-    if hasattr(model, "esmfold") and model.load_esmfold:
-        model.esmfold.requires_grad_(False)
-
-    optimizer = init_optimizer_for_heads(model, prefixes, lr=args.lr)
-
-    timestamp, writer = init_writer(args.outpath)
-    save_run_metadata(args.outpath, args, timestamp)
-
-    best_vloss = float("inf")
-    best_saved = False
-
-    for epoch in range(args.epochs):
-        print("EPOCH", epoch + 1)
-        train_loss, train_metrics = train_one_epoch(
-            training_loader,
-            optimizer,
-            model,
-            epoch,
-            writer,
-            device=args.device,
-            batch_accum=args.batch_accum,
-            alpha=args.alpha,
-            gamma=args.gamma,
-            outpath=args.outpath,
-            timestamp=timestamp,
-            loss_heads=loss_heads,
-            kin_class_weights=(kin_class_weights if kin_class_weights is None else kin_class_weights.to(args.device)),
+    # Validation is fixed across epochs. Sampling weights must never randomize it.
+    val_data: Any = val_set
+    val_sampler = None
+    if args.weighted_random_validation:
+        val_set.random_crop = True
+        val_count = args.val_samples_per_epoch or len(val_set)
+        if distributed():
+            val_weights_for_sampler = val_set.weights
+            if val_weights_for_sampler is None:
+                val_weights_for_sampler = torch.ones(len(val_set), dtype=torch.double)
+            val_sampler = DistributedWeightedSampler(
+                val_weights_for_sampler, val_count, args.seed + 1_000_000
+            )
+        else:
+            val_sampler = val_set.weighted_random_sampler(val_count)
+    elif args.val_samples_per_epoch and args.val_samples_per_epoch < len(val_set):
+        generator = torch.Generator().manual_seed(args.seed)
+        order = torch.randperm(len(val_set), generator=generator)[: args.val_samples_per_epoch]
+        val_data = Subset(val_set, order.tolist())
+    if distributed() and val_sampler is None:
+        val_sampler = DistributedSampler(
+            val_data, num_replicas=world_size(), rank=rank(), shuffle=False, drop_last=False
         )
 
-        val_loss, val_metrics = compute_validation(
-            validation_loader,
+    common = {
+        "batch_size": args.batch_size,
+        "num_workers": args.num_workers,
+        "collate_fn": collate_samples,
+        "pin_memory": args.device.startswith("cuda"),
+    }
+    train_loader = DataLoader(train_set, sampler=train_sampler, **common)
+    val_loader = DataLoader(val_data, sampler=val_sampler, shuffle=False, **common)
+    main_print(
+        f"Dataset: train={len(train_set)}, val={len(val_set)}, "
+        f"global_samples/epoch={train_count}, world_size={world_size()}"
+    )
+    return train_loader, val_loader, train_sampler, val_sampler
+
+
+def selected_prefixes(loss_heads: list[str]) -> list[str]:
+    unknown = set(loss_heads) - LOSS_NAMES
+    if unknown:
+        raise ValueError(f"Unknown loss heads: {sorted(unknown)}")
+    prefixes = sorted({name.split("_", 1)[0] for name in loss_heads})
+    return prefixes
+
+
+def initialize_model(args: argparse.Namespace, prefixes: list[str]) -> ESMDynamic:
+    if args.dataset_type == "rcsb":
+        if prefixes != ["dynamic"]:
+            raise ValueError("RCSB stage supports only the dynamic head")
+        definitions = [{
+            "name": "dynamic",
+            "task_type": "classification",
+            "n_conditions": 1,
+            "use_confidence_head": "dynamic_confidence" in args.loss_heads,
+            "use_residual_head": False,
+        }]
+        model = ESMDynamic(head_definitions=definitions)
+    else:
+        model = ESMDynamic(heads_to_load=prefixes)
+    model.set_chunk_size(args.chunk_size)
+    model.esmfold.requires_grad_(False)
+    return model
+
+
+def _extract_head_state(payload: Any) -> dict[str, torch.Tensor]:
+    if isinstance(payload, dict) and "model_state_dict" in payload:
+        payload = payload["model_state_dict"]
+    if not isinstance(payload, dict):
+        raise TypeError("Checkpoint does not contain a state dictionary")
+    return {
+        key: value for key, value in payload.items()
+        if isinstance(value, torch.Tensor) and key.startswith("heads.")
+    }
+
+
+def load_initial_weights(model: ESMDynamic, path: str) -> None:
+    payload = torch.load(path, map_location="cpu", weights_only=False)
+    source = _extract_head_state(payload)
+    target = model.state_dict()
+    compatible: dict[str, torch.Tensor] = {}
+    replicated: list[str] = []
+    skipped: list[str] = []
+    for key, value in source.items():
+        if key not in target:
+            skipped.append(key)
+            continue
+        if value.shape == target[key].shape:
+            compatible[key] = value
+        elif (
+            key.startswith("heads.dynamic.")
+            and value.ndim >= 1
+            and value.shape[0] == 1
+            and target[key].shape[0] == 5
+            and value.shape[1:] == target[key].shape[1:]
+        ):
+            compatible[key] = value.repeat(5, *([1] * (value.ndim - 1)))
+            replicated.append(key)
+        else:
+            skipped.append(key)
+    if not compatible:
+        raise RuntimeError(f"No compatible head weights found in {path}")
+    model.load_state_dict(compatible, strict=False)
+    main_print(
+        f"Initialized {len(compatible)} tensors from {path}; "
+        f"replicated 1->5 conditions for {len(replicated)} tensors; skipped {len(skipped)}"
+    )
+
+
+def unwrap_model(model: torch.nn.Module) -> ESMDynamic:
+    return model.module if isinstance(model, DistributedDataParallel) else model
+
+
+def forward_heads(
+    model: torch.nn.Module, sequences: list[str], num_recycles: int,
+    active_loss_heads: list[str],
+) -> dict[str, torch.Tensor]:
+    """Run frozen ESMFold plus trainable heads, omitting PDB/native-contact work."""
+    base_model = unwrap_model(model)
+    aatype, mask, residx, _, _ = batch_encode_sequences(sequences)
+    aatype, mask, residx = (
+        x.to(base_model.device, non_blocking=True) for x in (aatype, mask, residx)
+    )
+    return_keys = set(active_loss_heads)
+    if "dynamic_confidence" in return_keys:
+        return_keys.add("dynamic_logits")
+    if "kinetic_confidence" in return_keys:
+        return_keys.add("kinetic_logits")
+    if "frequency_residual_pred" in return_keys:
+        return_keys.add("frequency_pred")
+    return model(
+        aa=aatype, mask=mask, residx=residx, num_recycles=num_recycles,
+        compute_native_contacts=False, return_keys=return_keys,
+    )
+
+
+def valid_pair_mask(lengths: torch.Tensor, length: int, device: torch.device) -> torch.Tensor:
+    positions = torch.arange(length, device=device)
+    valid = positions[None, :] < lengths.to(device)[:, None]
+    return valid[:, :, None] & valid[:, None, :]
+
+
+def build_loss(
+    output: dict[str, torch.Tensor], batch: dict, args: argparse.Namespace,
+    kinetic_weights: torch.Tensor | None,
+) -> torch.Tensor:
+    lengths = batch["lengths"].to(args.device)
+    terms: list[torch.Tensor] = []
+    for name in getattr(args, "active_loss_heads", args.loss_heads):
+        if name == "dynamic_logits":
+            logits = output[name]
+            target = batch["dynamic"].to(args.device)
+            mask = valid_pair_mask(lengths, logits.shape[-1], logits.device)[:, None]
+            raw = F.binary_cross_entropy_with_logits(logits, target, reduction="none")
+            probability = torch.sigmoid(logits)
+            pt = probability * target + (1 - probability) * (1 - target)
+            alpha_t = args.alpha * target + (1 - args.alpha) * (1 - target)
+            terms.append((alpha_t * (1 - pt).pow(args.gamma) * raw)[mask.expand_as(raw)].mean())
+        elif name == "dynamic_confidence":
+            logits = output["dynamic_logits"].detach()
+            truth = batch["dynamic"].to(args.device)
+            correct = ((torch.sigmoid(logits) > 0.5) == (truth > 0.5)).float()
+            pair_mask = valid_pair_mask(lengths, logits.shape[-1], logits.device)[:, None]
+            count = pair_mask.sum(dim=-1).clamp_min(1)
+            target = (correct * pair_mask).sum(dim=-1) / count
+            residue_mask = pair_mask.any(dim=-1).expand_as(output[name])
+            terms.append(F.mse_loss(output[name][residue_mask], target[residue_mask]))
+        elif name == "frequency_pred":
+            pred = output[name]
+            target = batch["frequency"].to(args.device)
+            mask = valid_pair_mask(lengths, pred.shape[-1], pred.device)[:, None].expand_as(pred)
+            terms.append(F.mse_loss(pred[mask], target[mask]))
+        elif name == "frequency_residual_pred":
+            pred = output[name]
+            truth = batch["frequency"].to(args.device)
+            residual_target = (truth - output["frequency_pred"].detach()).abs()
+            mask = valid_pair_mask(lengths, pred.shape[-1], pred.device)[:, None].expand_as(pred)
+            terms.append(F.mse_loss(pred[mask], residual_target[mask]))
+        elif name == "kinetic_logits":
+            logits = output[name]
+            target = batch["kinetic"].to(args.device).long()
+            mask2d = valid_pair_mask(lengths, logits.shape[-2], logits.device)
+            losses = []
+            for rate in range(logits.shape[2]):
+                selected = mask2d[:, None].expand(-1, logits.shape[1], -1, -1)
+                weight = None if kinetic_weights is None else kinetic_weights[rate].to(
+                    device=logits.device, dtype=logits.dtype
+                )
+                losses.append(F.cross_entropy(logits[:, :, rate][selected], target[:, :, rate][selected], weight=weight))
+            terms.append(torch.stack(losses).mean())
+        elif name == "kinetic_confidence":
+            logits = output["kinetic_logits"].detach()
+            truth = batch["kinetic"].to(args.device).long()
+            correct = (logits.argmax(dim=-1) == truth).float().mean(dim=2)
+            pair_mask = valid_pair_mask(lengths, logits.shape[-2], logits.device)[:, None]
+            target = (correct * pair_mask).sum(dim=-1) / pair_mask.sum(dim=-1).clamp_min(1)
+            residue_mask = pair_mask.any(dim=-1).expand_as(output[name])
+            terms.append(F.mse_loss(output[name][residue_mask], target[residue_mask]))
+    if not terms:
+        raise RuntimeError("No losses were constructed")
+    return torch.stack(terms).mean()
+
+
+def binary_auroc(truth: np.ndarray, scores: np.ndarray) -> float:
+    truth = truth.astype(bool, copy=False)
+    positives = int(truth.sum())
+    negatives = int(truth.size - positives)
+    if positives == 0 or negatives == 0:
+        return float("nan")
+    order = np.argsort(scores, kind="mergesort")
+    sorted_scores = scores[order]
+    ranks = np.empty(scores.size, dtype=np.float64)
+    start = 0
+    while start < scores.size:
+        end = start + 1
+        while end < scores.size and sorted_scores[end] == sorted_scores[start]:
+            end += 1
+        ranks[order[start:end]] = (start + 1 + end) / 2
+        start = end
+    return float((ranks[truth].sum() - positives * (positives + 1) / 2) / (positives * negatives))
+
+
+def protein_metrics(
+    truth: np.ndarray, probability: np.ndarray,
+    frequency_true: np.ndarray | None = None,
+    frequency_pred: np.ndarray | None = None,
+) -> dict[str, float]:
+    indices = np.triu_indices(truth.shape[-1], k=1)
+    y = truth[indices] > 0.5
+    score = probability[indices]
+    pred = score > 0.5
+    tp = int(np.count_nonzero(pred & y))
+    tn = int(np.count_nonzero(~pred & ~y))
+    fp = int(np.count_nonzero(pred & ~y))
+    fn = int(np.count_nonzero(~pred & y))
+    precision = tp / (tp + fp) if tp + fp else 0.0
+    recall = tp / (tp + fn) if tp + fn else 0.0
+    specificity = tn / (tn + fp) if tn + fp else 0.0
+    result = {
+        "balanced_accuracy": (recall + specificity) / 2,
+        "precision": precision,
+        "recall": recall,
+        "f1": 2 * precision * recall / (precision + recall) if precision + recall else 0.0,
+        "auroc": binary_auroc(y, score),
+        "rmse": float("nan"),
+    }
+    if frequency_true is not None and frequency_pred is not None:
+        difference = frequency_pred[indices] - frequency_true[indices]
+        result["rmse"] = float(np.sqrt(np.mean(np.square(difference))))
+    return result
+
+
+def summarize_metrics(rows: list[dict[str, float]]) -> dict[str, dict[str, float | int]]:
+    summary: dict[str, dict[str, float | int]] = {}
+    for name in ("balanced_accuracy", "precision", "recall", "f1", "auroc", "rmse"):
+        values = np.asarray([row[name] for row in rows], dtype=np.float64)
+        values = values[np.isfinite(values)]
+        summary[name] = {
+            "n": int(values.size),
+            "mean": float(values.mean()) if values.size else float("nan"),
+            "std": float(values.std(ddof=1)) if values.size > 1 else float("nan"),
+            "sem": float(values.std(ddof=1) / math.sqrt(values.size)) if values.size > 1 else float("nan"),
+        }
+    return summary
+
+
+def synchronize(device: str) -> None:
+    if device.startswith("cuda"):
+        torch.cuda.synchronize()
+
+
+def run_epoch(
+    model: torch.nn.Module, loader: DataLoader, args: argparse.Namespace,
+    kinetic_weights: torch.Tensor | None, optimizer: torch.optim.Optimizer | None,
+) -> tuple[float, dict[str, dict[str, float | int]], float]:
+    training = optimizer is not None
+    model.train(training)
+    base_model = unwrap_model(model)
+    if training:
+        base_model.esmfold.eval()  # frozen trunk must not update dropout/batch statistics
+        optimizer.zero_grad(set_to_none=True)
+    total_loss = 0.0
+    batches = 0
+    metric_rows: list[dict[str, float]] = []
+    amp_enabled = args.device.startswith("cuda") and not args.no_amp
+    synchronize(args.device)
+    started = time.perf_counter()
+
+    grad_context = nullcontext() if training else torch.no_grad()
+    with grad_context:
+        for batch_index, batch in enumerate(loader):
+            group_start = (batch_index // args.effective_batch_accum) * args.effective_batch_accum
+            group_size = min(args.effective_batch_accum, len(loader) - group_start)
+            should_step = batch_index + 1 == group_start + group_size
+            sync_context = nullcontext()
+            if training and isinstance(model, DistributedDataParallel) and not should_step:
+                sync_context = model.no_sync()
+            with sync_context:
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=amp_enabled):
+                    output = forward_heads(
+                        model, batch["sequences"], args.num_recycles, args.active_loss_heads
+                    )
+                    loss = build_loss(output, batch, args, kinetic_weights)
+                if training:
+                    (loss / group_size).backward()
+            if training:
+                if should_step:
+                    optimizer.step()
+                    optimizer.zero_grad(set_to_none=True)
+            total_loss += float(loss.detach())
+            batches += 1
+
+            if not training and "dynamic_logits" in output:
+                condition = args.metric_condition
+                if condition >= output["dynamic_logits"].shape[1]:
+                    raise IndexError(f"metric-condition {condition} is unavailable")
+                probabilities = torch.sigmoid(output["dynamic_logits"][:, condition]).float().cpu()
+                dynamic = batch["dynamic"][:, condition].float()
+                predicted_frequency = output.get("frequency_pred")
+                for i, length in enumerate(batch["lengths"].tolist()):
+                    freq_true = freq_pred = None
+                    if batch["frequency"] is not None and predicted_frequency is not None:
+                        freq_true = batch["frequency"][i, condition, :length, :length].numpy()
+                        freq_pred = predicted_frequency[i, condition, :length, :length].float().cpu().numpy()
+                    metric_rows.append(protein_metrics(
+                        dynamic[i, :length, :length].numpy(),
+                        probabilities[i, :length, :length].numpy(), freq_true, freq_pred,
+                    ))
+            del output, loss
+
+    synchronize(args.device)
+    elapsed = time.perf_counter() - started
+    if distributed():
+        totals = torch.tensor([total_loss, batches, elapsed], device=args.device, dtype=torch.float64)
+        dist.all_reduce(totals[:2], op=dist.ReduceOp.SUM)
+        dist.all_reduce(totals[2:], op=dist.ReduceOp.MAX)
+        total_loss, batches, elapsed = totals.tolist()
+        if not training:
+            gathered: list[list[dict[str, float]] | None] = [None] * world_size()
+            dist.all_gather_object(gathered, metric_rows)
+            metric_rows = [row for rows in gathered if rows is not None for row in rows]
+    return total_loss / max(batches, 1), summarize_metrics(metric_rows), elapsed
+
+
+def head_state_dict(model: torch.nn.Module) -> dict[str, torch.Tensor]:
+    model = unwrap_model(model)
+    return {
+        key: value.detach().cpu() for key, value in model.state_dict().items()
+        if key.startswith("heads.")
+    }
+
+
+def rng_state() -> dict[str, Any]:
+    state: dict[str, Any] = {
+        "python": random.getstate(), "numpy": np.random.get_state(), "torch": torch.get_rng_state()
+    }
+    if torch.cuda.is_available():
+        state["cuda"] = torch.cuda.get_rng_state_all()
+    return state
+
+
+def restore_rng_state(state: dict[str, Any]) -> None:
+    random.setstate(state["python"])
+    np.random.set_state(state["numpy"])
+    torch.set_rng_state(state["torch"])
+    if "cuda" in state and torch.cuda.is_available() and state["cuda"]:
+        saved = state["cuda"]
+        if len(saved) == torch.cuda.device_count():
+            torch.cuda.set_rng_state_all(saved)
+        else:
+            torch.cuda.set_rng_state(saved[min(rank(), len(saved) - 1)])
+
+
+def save_checkpoint(
+    path: Path, model: torch.nn.Module, optimizer: torch.optim.Optimizer,
+    epoch: int, best_val_loss: float, args: argparse.Namespace,
+    epochs_without_improvement: int,
+) -> None:
+    payload = {
+        "format_version": 2,
+        "epoch": epoch,
+        "best_val_loss": best_val_loss,
+        "epochs_without_improvement": epochs_without_improvement,
+        "model_state_dict": head_state_dict(model),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "args": vars(args),
+        "rng_state": rng_state(),
+    }
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    torch.save(payload, temporary)
+    os.replace(temporary, path)
+
+
+def append_history(path: Path, row: dict[str, Any]) -> None:
+    fields = list(row)
+    exists = path.exists()
+    with path.open("a", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        if not exists:
+            writer.writeheader()
+        writer.writerow(row)
+
+
+def main() -> None:
+    args = parse_args()
+    args.loss_heads = list(args.loss_heads)
+    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+    if distributed():
+        if not args.device.startswith("cuda"):
+            raise ValueError("DDP currently requires CUDA/NCCL")
+        torch.cuda.set_device(local_rank)
+        dist.init_process_group(backend="nccl", init_method="env://")
+        args.device = f"cuda:{local_rank}"
+        if args.batch_accum % world_size() != 0:
+            raise ValueError(
+                f"batch-accum={args.batch_accum} must be divisible by world_size={world_size()} "
+                "to preserve the configured global effective batch size"
+            )
+        args.effective_batch_accum = args.batch_accum // world_size()
+    else:
+        args.effective_batch_accum = args.batch_accum
+    if args.dataset_type == "rcsb" and "dynamic_logits" not in args.loss_heads:
+        raise ValueError("RCSB pretraining requires dynamic_logits")
+    if args.dataset_type == "mdcath" and "dynamic_logits" not in args.loss_heads:
+        main_print("Warning: the six Table-1 metrics require dynamic_logits; only available metrics will be reported")
+    if args.device.startswith("cuda") and not torch.cuda.is_available():
+        raise RuntimeError("CUDA was requested but is unavailable")
+
+    output_dir = Path(args.outpath)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    seed_everything(args.seed, args.deterministic)
+    total_started = time.perf_counter()
+    if args.device.startswith("cuda"):
+        torch.cuda.reset_peak_memory_stats()
+
+    train_loader, val_loader, train_sampler, val_sampler = make_loaders(args)
+    prefixes = selected_prefixes(args.loss_heads)
+    load_started = time.perf_counter()
+    model = initialize_model(args, prefixes)
+    if args.init_checkpoint and not args.resume:
+        load_initial_weights(model, args.init_checkpoint)
+    model.to(args.device)
+    synchronize(args.device)
+    model_load_seconds = time.perf_counter() - load_started
+    optimizer = torch.optim.Adam(
+        [parameter for head in model.heads.values() for parameter in head.parameters()],
+        lr=args.lr, weight_decay=args.weight_decay,
+    )
+    kinetic_weights = load_tensor(args.kin_class_weights)
+    start_epoch, best_val_loss, epochs_without_improvement = 0, float("inf"), 0
+    if args.resume:
+        checkpoint = torch.load(args.resume, map_location="cpu", weights_only=False)
+        model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        start_epoch = int(checkpoint["epoch"]) + 1
+        best_val_loss = float(checkpoint["best_val_loss"])
+        epochs_without_improvement = int(checkpoint.get("epochs_without_improvement", 0))
+        if "rng_state" in checkpoint:
+            restore_rng_state(checkpoint["rng_state"])
+        # A world-size change cannot retain an identical RNG trajectory; give
+        # each rank a deterministic independent stream after restoring state.
+        if distributed():
+            torch.manual_seed(args.seed + start_epoch * 100_003 + rank())
+            torch.cuda.manual_seed(args.seed + start_epoch * 100_003 + rank())
+        main_print(f"Resumed {args.resume} at epoch {start_epoch + 1}")
+
+    if distributed():
+        model = DistributedDataParallel(
             model,
-            epoch,
-            writer,
-            train_loss,
-            device=args.device,
-            alpha=args.alpha,
-            gamma=args.gamma,
-            loss_heads=loss_heads,
-            kin_class_weights=(kin_class_weights if kin_class_weights is None else kin_class_weights.to(args.device)),
+            device_ids=[local_rank],
+            output_device=local_rank,
+            broadcast_buffers=False,
+            find_unused_parameters=True,
+        )
+        main_print(
+            f"DDP enabled on {world_size()} GPUs; per-GPU batch={args.batch_size}, "
+            f"accumulation={args.effective_batch_accum}, "
+            f"global effective batch={args.batch_size * args.effective_batch_accum * world_size()}"
         )
 
-        # Save best and last for each trained head
-        if val_loss < best_vloss:
-            best_vloss = val_loss
-            save_head_state_dicts(model, prefixes, args.outpath, "best_vloss", timestamp)
-            best_saved = True
+    writer = SummaryWriter(output_dir / "tensorboard") if SummaryWriter and is_main_process() else None
+    metadata = {
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "arguments": vars(args),
+        "model_load_seconds": model_load_seconds,
+        "trainable_parameters": sum(p.numel() for p in model.parameters() if p.requires_grad),
+    }
+    if is_main_process():
+        metadata_name = "run_metadata.json" if not args.resume else f"run_metadata_resume_epoch_{start_epoch + 1}.json"
+        (output_dir / metadata_name).write_text(json.dumps(metadata, indent=2, allow_nan=True))
 
-        save_head_state_dicts(model, prefixes, args.outpath, "chkpt", timestamp)
+    history_path = output_dir / "history.csv"
+    for epoch in range(start_epoch, args.epochs):
+        if hasattr(train_sampler, "set_epoch"):
+            train_sampler.set_epoch(epoch)
+        if hasattr(val_sampler, "set_epoch"):
+            val_sampler.set_epoch(epoch)
+        auxiliary = {"dynamic_confidence", "kinetic_confidence", "frequency_residual_pred"}
+        if epoch + 1 < args.aux_head_start_epoch:
+            args.active_loss_heads = [name for name in args.loss_heads if name not in auxiliary]
+        else:
+            args.active_loss_heads = list(args.loss_heads)
+        main_print(f"Epoch {epoch + 1} active losses: {', '.join(args.active_loss_heads)}")
+        train_loss, _, train_seconds = run_epoch(
+            model, train_loader, args, kinetic_weights, optimizer
+        )
+        val_loss, metrics, val_seconds = run_epoch(
+            model, val_loader, args, kinetic_weights, None
+        )
+        row: dict[str, Any] = {
+            "epoch": epoch + 1, "train_loss": train_loss, "val_loss": val_loss,
+            "train_seconds": train_seconds, "val_seconds": val_seconds,
+            "epoch_seconds": train_seconds + val_seconds,
+        }
+        for name, values in metrics.items():
+            for statistic, value in values.items():
+                row[f"val_{name}_{statistic}"] = value
+        if args.device.startswith("cuda"):
+            peak = torch.tensor(torch.cuda.max_memory_allocated() / 1024**2, device=args.device)
+            if distributed():
+                dist.all_reduce(peak, op=dist.ReduceOp.MAX)
+            row["peak_gpu_memory_mib"] = float(peak)
+        if is_main_process():
+            append_history(history_path, row)
+        if writer:
+            writer.add_scalar("loss/train", train_loss, epoch + 1)
+            writer.add_scalar("loss/validation", val_loss, epoch + 1)
+            writer.add_scalar("time/train_seconds", train_seconds, epoch + 1)
+            writer.add_scalar("time/validation_seconds", val_seconds, epoch + 1)
+            for name, values in metrics.items():
+                if math.isfinite(float(values["mean"])):
+                    writer.add_scalar(f"metrics/{name}", values["mean"], epoch + 1)
 
-    print("Training finished. Best validation loss:", best_vloss)
-    if not best_saved:
-        print("No improvement observed during training; only last checkpoint(s) saved.")
+        improved = val_loss < best_val_loss
+        if improved:
+            best_val_loss = val_loss
+            epochs_without_improvement = 0
+        else:
+            epochs_without_improvement += 1
+        if is_main_process():
+            save_checkpoint(
+                output_dir / "checkpoint_last.pt", model, optimizer, epoch,
+                best_val_loss, args, epochs_without_improvement,
+            )
+            if improved:
+                save_checkpoint(
+                    output_dir / "checkpoint_best.pt", model, optimizer, epoch,
+                    best_val_loss, args, epochs_without_improvement,
+                )
+                torch.save(head_state_dict(model), output_dir / "heads_best.pt")
+        if distributed():
+            dist.barrier()
+        means = " ".join(
+            f"{name}={values['mean']:.4f}" for name, values in metrics.items()
+            if math.isfinite(float(values["mean"]))
+        )
+        main_print(
+            f"Epoch {epoch + 1}/{args.epochs}: train_loss={train_loss:.6g} "
+            f"val_loss={val_loss:.6g} train={train_seconds:.1f}s val={val_seconds:.1f}s {means}"
+        )
+        if args.early_stopping_patience > 0 and epochs_without_improvement >= args.early_stopping_patience:
+            main_print(
+                f"Early stopping: validation loss did not improve for "
+                f"{epochs_without_improvement} epochs"
+            )
+            break
+
+    total_seconds = time.perf_counter() - total_started
+    summary = {
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+        "model_load_seconds": model_load_seconds,
+        "total_process_seconds": total_seconds,
+        "best_val_loss": best_val_loss,
+        "peak_gpu_memory_mib": (
+            torch.cuda.max_memory_allocated() / 1024**2 if args.device.startswith("cuda") else None
+        ),
+    }
+    if is_main_process():
+        (output_dir / "timing_summary.json").write_text(json.dumps(summary, indent=2))
+        torch.save(head_state_dict(model), output_dir / "heads_last.pt")
+    if writer:
+        writer.close()
+    main_print(f"Training complete in {total_seconds:.1f}s; best validation loss={best_val_loss:.6g}")
+    if distributed():
+        dist.barrier()
+        dist.destroy_process_group()
 
 
 if __name__ == "__main__":

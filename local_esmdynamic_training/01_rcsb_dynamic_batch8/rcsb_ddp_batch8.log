@@ -1,0 +1,111 @@
+W0920 00:03:40.202000 44909 site-packages/torch/distributed/run.py:774] 
+W0920 00:03:40.202000 44909 site-packages/torch/distributed/run.py:774] *****************************************
+W0920 00:03:40.202000 44909 site-packages/torch/distributed/run.py:774] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0920 00:03:40.202000 44909 site-packages/torch/distributed/run.py:774] *****************************************
+Dataset: train=78175, val=4347, global_samples/epoch=10000, world_size=2
+Resumed /data/user/sunxc/local_esmdynamic_weights/01_rcsb_dynamic/checkpoint_last.pt at epoch 2
+DDP enabled on 2 GPUs; per-GPU batch=8, accumulation=8, global effective batch=128
+Epoch 2 active losses: dynamic_logits
+/data/user/sunxc/miniconda3/envs/esmdynamic/lib/python3.11/site-packages/openfold/model/primitives.py:203: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/data/user/sunxc/miniconda3/envs/esmdynamic/lib/python3.11/site-packages/openfold/model/primitives.py:235: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/data/user/sunxc/miniconda3/envs/esmdynamic/lib/python3.11/site-packages/openfold/model/primitives.py:203: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/data/user/sunxc/miniconda3/envs/esmdynamic/lib/python3.11/site-packages/openfold/model/primitives.py:235: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/data/user/sunxc/miniconda3/envs/esmdynamic/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4807: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+/data/user/sunxc/miniconda3/envs/esmdynamic/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4807: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+Epoch 2/100: train_loss=0.00564085 val_loss=0.00485564 train=11120.8s val=683.0s balanced_accuracy=0.7239 precision=0.0087 recall=0.5220 f1=0.0160 auroc=0.8555
+Epoch 3 active losses: dynamic_logits
+Epoch 3/100: train_loss=0.00472426 val_loss=0.00431695 train=7279.1s val=683.1s balanced_accuracy=0.7333 precision=0.0092 recall=0.5378 f1=0.0169 auroc=0.8737
+Epoch 4 active losses: dynamic_logits
+Epoch 4/100: train_loss=0.00365803 val_loss=0.003885 train=7197.0s val=656.5s balanced_accuracy=0.7433 precision=0.0105 recall=0.5599 f1=0.0189 auroc=0.8735
+Epoch 5 active losses: dynamic_logits
+Epoch 5/100: train_loss=0.00327136 val_loss=0.0031357 train=7503.0s val=739.9s balanced_accuracy=0.7387 precision=0.0103 recall=0.5433 f1=0.0188 auroc=0.8836
+Epoch 6 active losses: dynamic_logits
+Epoch 6/100: train_loss=0.00278342 val_loss=0.00295741 train=7442.6s val=693.0s balanced_accuracy=0.7419 precision=0.0114 recall=0.5473 f1=0.0205 auroc=0.8839
+Epoch 7 active losses: dynamic_logits
+Epoch 7/100: train_loss=0.00252817 val_loss=0.00216569 train=7468.2s val=699.9s balanced_accuracy=0.7395 precision=0.0113 recall=0.5409 f1=0.0207 auroc=0.8919
+Epoch 8 active losses: dynamic_logits
+Epoch 8/100: train_loss=0.00214572 val_loss=0.00257198 train=7366.8s val=3562.6s balanced_accuracy=0.7368 precision=0.0129 recall=0.5399 f1=0.0225 auroc=0.8860
+Epoch 9 active losses: dynamic_logits
+Epoch 9/100: train_loss=0.00195514 val_loss=0.00183412 train=10719.8s val=692.4s balanced_accuracy=0.7269 precision=0.0102 recall=0.5184 f1=0.0187 auroc=0.8854
+Epoch 10 active losses: dynamic_logits
+Epoch 10/100: train_loss=0.00167334 val_loss=0.00147275 train=7409.3s val=709.5s balanced_accuracy=0.7184 precision=0.0103 recall=0.4934 f1=0.0189 auroc=0.8861
+Epoch 11 active losses: dynamic_logits, dynamic_confidence
+Epoch 11/100: train_loss=0.00679287 val_loss=0.00178511 train=7392.8s val=714.1s balanced_accuracy=0.7306 precision=0.0116 recall=0.5165 f1=0.0209 auroc=0.8956
+Epoch 12 active losses: dynamic_logits, dynamic_confidence
+Epoch 12/100: train_loss=0.00131786 val_loss=0.00152737 train=7360.9s val=679.3s balanced_accuracy=0.7381 precision=0.0118 recall=0.5328 f1=0.0216 auroc=0.8991
+Epoch 13 active losses: dynamic_logits, dynamic_confidence
+Epoch 13/100: train_loss=0.00112587 val_loss=0.00132341 train=7023.8s val=678.7s balanced_accuracy=0.7273 precision=0.0126 recall=0.5059 f1=0.0218 auroc=0.8962
+Epoch 14 active losses: dynamic_logits, dynamic_confidence
+Epoch 14/100: train_loss=0.00103799 val_loss=0.00144905 train=6960.1s val=653.7s balanced_accuracy=0.7366 precision=0.0125 recall=0.5294 f1=0.0222 auroc=0.8992
+Epoch 15 active losses: dynamic_logits, dynamic_confidence
+Epoch 15/100: train_loss=0.000928124 val_loss=0.00119776 train=6941.5s val=671.6s balanced_accuracy=0.7230 precision=0.0124 recall=0.4958 f1=0.0224 auroc=0.8926
+Epoch 16 active losses: dynamic_logits, dynamic_confidence
+Epoch 16/100: train_loss=0.000904654 val_loss=0.00101155 train=7157.7s val=676.9s balanced_accuracy=0.7391 precision=0.0124 recall=0.5294 f1=0.0224 auroc=0.9036
+Epoch 17 active losses: dynamic_logits, dynamic_confidence
+Epoch 17/100: train_loss=0.000752704 val_loss=0.000915661 train=7248.3s val=720.6s balanced_accuracy=0.7357 precision=0.0137 recall=0.5168 f1=0.0240 auroc=0.9014
+Epoch 18 active losses: dynamic_logits, dynamic_confidence
+Epoch 18/100: train_loss=0.000768846 val_loss=0.000832234 train=7822.3s val=805.2s balanced_accuracy=0.7307 precision=0.0137 recall=0.5066 f1=0.0247 auroc=0.9036
+Epoch 19 active losses: dynamic_logits, dynamic_confidence
+Epoch 19/100: train_loss=0.000693942 val_loss=0.000850921 train=7921.9s val=683.8s balanced_accuracy=0.7381 precision=0.0134 recall=0.5253 f1=0.0239 auroc=0.9065
+Epoch 20 active losses: dynamic_logits, dynamic_confidence
+Epoch 20/100: train_loss=0.000605947 val_loss=0.000713011 train=7181.0s val=702.8s balanced_accuracy=0.7470 precision=0.0133 recall=0.5374 f1=0.0240 auroc=0.9130
+Epoch 21 active losses: dynamic_logits, dynamic_confidence
+Epoch 21/100: train_loss=0.000573912 val_loss=0.000689748 train=7498.7s val=678.5s balanced_accuracy=0.7574 precision=0.0145 recall=0.5568 f1=0.0255 auroc=0.9189
+Epoch 22 active losses: dynamic_logits, dynamic_confidence
+Epoch 22/100: train_loss=0.00055908 val_loss=0.000562936 train=7325.5s val=681.8s balanced_accuracy=0.7433 precision=0.0155 recall=0.5231 f1=0.0271 auroc=0.9181
+Epoch 23 active losses: dynamic_logits, dynamic_confidence
+Epoch 23/100: train_loss=0.000449916 val_loss=0.000603775 train=7180.3s val=678.6s balanced_accuracy=0.7530 precision=0.0158 recall=0.5454 f1=0.0284 auroc=0.9177
+Epoch 24 active losses: dynamic_logits, dynamic_confidence
+Epoch 24/100: train_loss=0.000448822 val_loss=0.00046088 train=7154.9s val=673.1s balanced_accuracy=0.7396 precision=0.0163 recall=0.5121 f1=0.0291 auroc=0.9226
+Epoch 25 active losses: dynamic_logits, dynamic_confidence
+Epoch 25/100: train_loss=0.000401609 val_loss=0.000499143 train=7081.4s val=666.7s balanced_accuracy=0.7452 precision=0.0191 recall=0.5221 f1=0.0331 auroc=0.9222
+Epoch 26 active losses: dynamic_logits, dynamic_confidence
+Epoch 26/100: train_loss=0.000417831 val_loss=0.000483744 train=7122.7s val=667.0s balanced_accuracy=0.7525 precision=0.0182 recall=0.5392 f1=0.0315 auroc=0.9245
+Epoch 27 active losses: dynamic_logits, dynamic_confidence
+Epoch 27/100: train_loss=0.0003768 val_loss=0.000428203 train=7204.7s val=682.3s balanced_accuracy=0.7532 precision=0.0182 recall=0.5384 f1=0.0317 auroc=0.9294
+Epoch 28 active losses: dynamic_logits, dynamic_confidence
+Epoch 28/100: train_loss=0.000380552 val_loss=0.000509484 train=7215.0s val=682.5s balanced_accuracy=0.7835 precision=0.0208 recall=0.6023 f1=0.0351 auroc=0.9287
+Epoch 29 active losses: dynamic_logits, dynamic_confidence
+Epoch 29/100: train_loss=0.000356133 val_loss=0.000390796 train=7305.3s val=690.8s balanced_accuracy=0.7528 precision=0.0215 recall=0.5322 f1=0.0367 auroc=0.9282
+Epoch 30 active losses: dynamic_logits, dynamic_confidence
+Epoch 30/100: train_loss=0.000330473 val_loss=0.000413513 train=7153.6s val=668.7s balanced_accuracy=0.7712 precision=0.0199 recall=0.5739 f1=0.0344 auroc=0.9290
+Epoch 31 active losses: dynamic_logits, dynamic_confidence
+Epoch 31/100: train_loss=0.000334844 val_loss=0.000381125 train=7032.0s val=672.0s balanced_accuracy=0.7591 precision=0.0205 recall=0.5487 f1=0.0351 auroc=0.9323
+Epoch 32 active losses: dynamic_logits, dynamic_confidence
+Epoch 32/100: train_loss=0.000318327 val_loss=0.000380234 train=7034.7s val=669.9s balanced_accuracy=0.7610 precision=0.0204 recall=0.5524 f1=0.0348 auroc=0.9327
+Epoch 33 active losses: dynamic_logits, dynamic_confidence
+Epoch 33/100: train_loss=0.000294785 val_loss=0.000358542 train=7032.1s val=658.1s balanced_accuracy=0.7577 precision=0.0216 recall=0.5434 f1=0.0371 auroc=0.9374
+Epoch 34 active losses: dynamic_logits, dynamic_confidence
+Epoch 34/100: train_loss=0.000294142 val_loss=0.000352825 train=6995.1s val=651.0s balanced_accuracy=0.7712 precision=0.0218 recall=0.5707 f1=0.0376 auroc=0.9404
+Epoch 35 active losses: dynamic_logits, dynamic_confidence
+Epoch 35/100: train_loss=0.000295449 val_loss=0.000346402 train=6988.0s val=656.3s balanced_accuracy=0.7752 precision=0.0218 recall=0.5801 f1=0.0377 auroc=0.9400
+Epoch 36 active losses: dynamic_logits, dynamic_confidence
+Epoch 36/100: train_loss=0.000283781 val_loss=0.000286738 train=6993.4s val=671.7s balanced_accuracy=0.7755 precision=0.0209 recall=0.5763 f1=0.0364 auroc=0.9423
+Epoch 37 active losses: dynamic_logits, dynamic_confidence
+Epoch 37/100: train_loss=0.000268857 val_loss=0.000318483 train=7076.8s val=676.6s balanced_accuracy=0.7779 precision=0.0224 recall=0.5844 f1=0.0393 auroc=0.9400
+Epoch 38 active losses: dynamic_logits, dynamic_confidence
+Epoch 38/100: train_loss=0.000287042 val_loss=0.000323612 train=7636.4s val=707.1s balanced_accuracy=0.7762 precision=0.0221 recall=0.5795 f1=0.0383 auroc=0.9412
+Epoch 39 active losses: dynamic_logits, dynamic_confidence
+Epoch 39/100: train_loss=0.000273538 val_loss=0.000324896 train=7307.3s val=694.5s balanced_accuracy=0.7773 precision=0.0218 recall=0.5838 f1=0.0369 auroc=0.9404
+Epoch 40 active losses: dynamic_logits, dynamic_confidence
+Epoch 40/100: train_loss=0.000267075 val_loss=0.000299253 train=7178.3s val=681.8s balanced_accuracy=0.7859 precision=0.0217 recall=0.5991 f1=0.0384 auroc=0.9453
+Epoch 41 active losses: dynamic_logits, dynamic_confidence
+Epoch 41/100: train_loss=0.000266269 val_loss=0.000305107 train=7315.3s val=706.1s balanced_accuracy=0.7766 precision=0.0223 recall=0.5802 f1=0.0380 auroc=0.9426
+Epoch 42 active losses: dynamic_logits, dynamic_confidence
+Epoch 42/100: train_loss=0.00026494 val_loss=0.000343689 train=7829.9s val=835.1s balanced_accuracy=0.7715 precision=0.0250 recall=0.5688 f1=0.0427 auroc=0.9421
+Epoch 43 active losses: dynamic_logits, dynamic_confidence
+Epoch 43/100: train_loss=0.000262445 val_loss=0.000328402 train=7595.5s val=669.7s balanced_accuracy=0.7729 precision=0.0255 recall=0.5707 f1=0.0433 auroc=0.9408
+Epoch 44 active losses: dynamic_logits, dynamic_confidence
+Epoch 44/100: train_loss=0.000264378 val_loss=0.00030916 train=7044.7s val=666.6s balanced_accuracy=0.7676 precision=0.0250 recall=0.5585 f1=0.0420 auroc=0.9415
+Epoch 45 active losses: dynamic_logits, dynamic_confidence
+Epoch 45/100: train_loss=0.000266726 val_loss=0.000288518 train=7000.4s val=676.7s balanced_accuracy=0.7750 precision=0.0254 recall=0.5730 f1=0.0433 auroc=0.9482
+Epoch 46 active losses: dynamic_logits, dynamic_confidence
+Epoch 46/100: train_loss=0.000266549 val_loss=0.000333944 train=7016.8s val=674.0s balanced_accuracy=0.7834 precision=0.0231 recall=0.5966 f1=0.0394 auroc=0.9440
+Early stopping: validation loss did not improve for 10 epochs
+Training complete in 367773.4s; best validation loss=0.000286738

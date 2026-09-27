@@ -1,0 +1,43 @@
+{
+  "started_at": "2026-09-19T16:04:36.186183+00:00",
+  "arguments": {
+    "dataset_type": "rcsb",
+    "train_identifiers_file": "/data/user/sunxc/Projects/esmdynamic/reproduction/training/rcsb_filtered/train.csv",
+    "val_identifiers_file": "/data/user/sunxc/Projects/esmdynamic/reproduction/training/rcsb_filtered/val.csv",
+    "data_dir": "/bigdat2/user/sunxc/rcsb_data/rcsb",
+    "outpath": "/data/user/sunxc/local_esmdynamic_training/01_rcsb_dynamic_batch8",
+    "train_weight_file": "/data/user/sunxc/Projects/esmdynamic/reproduction/training/rcsb_filtered/train_weights.pt",
+    "val_weight_file": "/data/user/sunxc/Projects/esmdynamic/reproduction/training/rcsb_filtered/val_weights.pt",
+    "kin_class_weights": null,
+    "loss_heads": [
+      "dynamic_logits",
+      "dynamic_confidence"
+    ],
+    "init_checkpoint": null,
+    "resume": "/data/user/sunxc/local_esmdynamic_weights/01_rcsb_dynamic/checkpoint_last.pt",
+    "epochs": 100,
+    "batch_size": 8,
+    "batch_accum": 16,
+    "crop_length": 256,
+    "train_samples_per_epoch": 10000,
+    "val_samples_per_epoch": 1000,
+    "num_workers": 0,
+    "lr": 0.0001,
+    "weight_decay": 0.0,
+    "alpha": 0.99,
+    "gamma": 2.0,
+    "chunk_size": 128,
+    "num_recycles": 3,
+    "metric_condition": 0,
+    "aux_head_start_epoch": 11,
+    "early_stopping_patience": 10,
+    "weighted_random_validation": true,
+    "seed": 0,
+    "device": "cuda:0",
+    "no_amp": false,
+    "deterministic": false,
+    "effective_batch_accum": 8
+  },
+  "model_load_seconds": 51.03130142716691,
+  "trainable_parameters": 32133540
+}

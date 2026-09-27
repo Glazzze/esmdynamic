@@ -339,6 +339,8 @@ class ESMDynamic(nn.Module):
             masking_pattern: T.Optional[torch.Tensor] = None,
             num_recycles: T.Optional[int] = None,
             precomputed: T.Optional[dict] = None,  # ESMFold output --> Only used at training time
+            compute_native_contacts: bool = True,
+            return_keys: T.Optional[T.Collection[str]] = None,
     ):
 
         if not self.load_esmfold and precomputed is None:
@@ -358,7 +360,7 @@ class ESMDynamic(nn.Module):
             structure = head(structure, num_recycles=num_recycles)
 
         # Get native contacts from ESMFold and find the set "dynamic - native" and "native - dynamic"
-        if "dynamic" in self.heads:
+        if compute_native_contacts and "dynamic" in self.heads:
 
             struct_cpu = {
                 k: (
@@ -408,6 +410,8 @@ class ESMDynamic(nn.Module):
                 native_expanded * (1 - dynamic_pred)
             )
 
+        if return_keys is not None:
+            return {key: structure[key] for key in return_keys}
         return structure
 
     def forward_from_seq(
