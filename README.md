@@ -24,6 +24,7 @@ This repository is based on [Evolutionary Scale Modeling](https://github.com/fac
   - [Datasets](#available-datatsets)
   - [Human Proteome](#proteome)
 - [Training](#training)
+- [Reproduction Results](#reproduction-results)
 - [Citations](#citations)
 - [License](#license)
 </details> 
@@ -193,6 +194,80 @@ Then, training can be run with:
 ```bash
 python esm/esmdynamic/training/train.py @train_params.txt
 ```
+
+# Reproduction Results <a name="reproduction-results"></a>
+
+The retained artifacts for the two-stage training reproduction and the fixed
+mdCATH test evaluation are collected in
+[`local_esmdynamic_training`](local_esmdynamic_training). Detailed training
+commands and data-preparation notes are available in
+[`reproduction/training/README.md`](reproduction/training/README.md).
+
+## Stage 1: RCSB pretraining
+
+The dynamic-contact head was pretrained on the filtered RCSB splits with
+10,000 training and 1,000 validation draws per epoch. Training stopped at
+epoch 46 after 10 epochs without validation-loss improvement. The best
+checkpoint was epoch 36.
+
+| Measurement | Result |
+|---|---:|
+| Best validation loss | 0.000286738 |
+| Best-checkpoint epoch | 36 |
+| Complete process time | 367,773 s (102.2 h) |
+| Peak GPU memory | 29,151 MiB |
+
+The history, metadata, timing summary, TensorBoard events, and log are in
+[`local_esmdynamic_training/01_rcsb_dynamic_batch8`](local_esmdynamic_training/01_rcsb_dynamic_batch8).
+
+## Stage 2: mdCATH fine-tuning
+
+The mdCATH heads were initialized from the stage-1 best checkpoint and trained
+for 100 epochs with 1,000 training and 100 validation draws per epoch. The
+checkpoint selected by total validation loss was epoch 97.
+
+| Measurement | Result |
+|---|---:|
+| Best validation loss | 0.191939 |
+| Best-checkpoint epoch | 97 |
+| Lowest sampled-validation occupancy RMSE | 0.157144 (epoch 83) |
+| Complete process time | 160,107 s (44.5 h) |
+| Peak GPU memory | 23,591 MiB |
+
+The complete 100-epoch history and supporting files are in
+[`local_esmdynamic_training/02_mdcath_finetune_from_rcsb_best`](local_esmdynamic_training/02_mdcath_finetune_from_rcsb_best).
+
+## Fixed 270-protein mdCATH test evaluation
+
+The epoch-97 checkpoint was evaluated at 320 K on the fixed 270-protein test
+split using one RTX 5090, batch size 1, chunk size 128, and three recycles.
+Metrics below are per-protein means and standard errors over the strict upper
+triangle without the diagonal.
+
+| Metric | Reproduction | Paper |
+|---|---:|---:|
+| Balanced accuracy | 0.8042 +/- 0.0060 | 0.796 +/- 0.007 |
+| Precision | 0.4959 +/- 0.0114 | 0.511 +/- 0.012 |
+| Recall | 0.7706 +/- 0.0091 | 0.767 +/- 0.010 |
+| F1 | 0.5653 +/- 0.0081 | 0.569 +/- 0.008 |
+| AUROC | 0.8950 +/- 0.0057 | 0.889 +/- 0.006 |
+| Contact-occupancy RMSE | 0.1795 +/- 0.0024 | 0.076 +/- 0.002 |
+
+The classification metrics closely reproduce the reported values. The
+contact-occupancy RMSE remains higher than the paper value and is retained as
+observed rather than adjusted. The per-protein metrics, summary, runtime
+metadata, and evaluation log are in
+[`local_esmdynamic_training/eval_gpu3_table1_v97`](local_esmdynamic_training/eval_gpu3_table1_v97).
+
+The evaluation required 859.97 seconds of summed inference time (3.19 seconds
+per protein), 962.31 seconds of complete wall time, and 10,825.58 MiB peak GPU
+memory.
+
+Model checkpoint files remain in the local artifact directories, but are not
+tracked by regular Git: each file exceeds GitHub's 100 MB per-file limit and
+the upstream repository already ignores `*.pt`. SHA-256 checksums for all
+retained local checkpoints are recorded in
+[`local_esmdynamic_training/README.md`](local_esmdynamic_training/README.md).
 
 # Citations <a name="citations"></a>
 

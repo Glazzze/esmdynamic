@@ -1,0 +1,6 @@
+measurement               , seconds   , minutes , description
+model_load                ,  74.436142, 1.240602, Model construction and weight loading
+per_sample_inference_sum  , 399.591308, 6.659855, Sum of synchronized inference time over 270 proteins
+mean_inference_per_protein,   1.479968, 0.024666, Mean synchronized inference time per protein
+inference_loop_wall_time  , 489.048057, 8.150801, Wall time of the complete evaluation loop including data loading and metrics
+total_process_wall_time   , 564.735239, 9.412254, Wall time from model loading through result writing

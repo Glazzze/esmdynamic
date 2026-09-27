@@ -1,0 +1,7 @@
+metric           , n  , reproduced_mean, reproduced_sem, paper_mean, paper_sem, mean_difference, matrix_scope
+Balanced Accuracy, 270,        0.804775,       0.006185,      0.796,     0.007, 0.008775       , upper_triangle_no_diagonal
+Precision        , 270,        0.509809,       0.011775,      0.511,     0.012, -0.001191      , upper_triangle_no_diagonal
+Recall           , 270,        0.771254,       0.009501,      0.767,     0.010, 0.004254       , upper_triangle_no_diagonal
+F1               , 270,        0.570855,       0.008330,      0.569,     0.008, 0.001855       , upper_triangle_no_diagonal
+AUROC            , 270,        0.899198,       0.005676,      0.889,     0.006, 0.010198       , upper_triangle_no_diagonal
+RMSE             , 270,        0.074181,       0.002336,      0.076,     0.002, -0.001819      , upper_triangle_no_diagonal

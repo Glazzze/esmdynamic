@@ -1,0 +1,421 @@
+[001/270] 4g92C00 L=117 time=5.56s peak=8460MiB
+[002/270] 2lisA00 L=131 time=2.52s peak=8504MiB
+[003/270] 3i5xA02 L=260 time=5.33s peak=9045MiB
+[004/270] 1whoA00 L=94 time=2.12s peak=8404MiB
+[005/270] 1w66A01 L=208 time=3.74s peak=8755MiB
+[006/270] 1otvA00 L=254 time=4.34s peak=9000MiB
+[007/270] 1mdaH00 L=368 time=9.95s peak=9710MiB
+[008/270] 1dl5A01 L=201 time=2.87s peak=8727MiB
+[009/270] 1frmA00 L=106 time=2.89s peak=8430MiB
+[010/270] 3pqsA03 L=88 time=2.52s peak=8390MiB
+[011/270] 2h85A01 L=65 time=2.38s peak=8355MiB
+[012/270] 2ijd101 L=180 time=3.37s peak=8651MiB
+[013/270] 1mmoB00 L=384 time=10.18s peak=9825MiB
+[014/270] 2xdqB01 L=147 time=2.37s peak=8546MiB
+[015/270] 1wraA01 L=300 time=6.56s peak=9261MiB
+[016/270] 1tujA00 L=123 time=1.59s peak=8477MiB
+[017/270] 3cx5A02 L=223 time=2.88s peak=8816MiB
+[018/270] 2l0cA00 L=97 time=2.60s peak=8410MiB
+[019/270] 1gcyA02 L=56 time=2.11s peak=8343MiB
+[020/270] 4c0xA00 L=200 time=3.33s peak=8724MiB
+[021/270] 3htxA01 L=76 time=2.51s peak=8369MiB
+[022/270] 2xzmM01 L=82 time=2.00s peak=8379MiB
+[023/270] 1jq5A02 L=206 time=3.45s peak=8748MiB
+[024/270] 4z9cA00 L=223 time=3.87s peak=8816MiB
+[025/270] 5aj3P00 L=117 time=1.97s peak=8460MiB
+[026/270] 1pc0A00 L=61 time=2.45s peak=8349MiB
+[027/270] 2kyyA00 L=153 time=2.34s peak=8563MiB
+[028/270] 1gvhA01 L=148 time=2.98s peak=8550MiB
+[029/270] 1yzyA01 L=234 time=4.38s peak=8865MiB
+[030/270] 3h0gE01 L=134 time=2.11s peak=8510MiB
+[031/270] 1x1yE00 L=89 time=2.63s peak=8394MiB
+[032/270] 2hraA02 L=91 time=2.59s peak=8399MiB
+[033/270] 4xjxA04 L=270 time=4.64s peak=9093MiB
+[034/270] 1xffA00 L=238 time=4.42s peak=8889MiB
+[035/270] 1ho8A02 L=112 time=1.74s peak=8446MiB
+[036/270] 4n7rC02 L=111 time=2.94s peak=8444MiB
+[037/270] 1r9lA02 L=141 time=3.01s peak=8531MiB
+[038/270] 4b94A00 L=141 time=2.76s peak=8531MiB
+[039/270] 3nw0B01 L=84 time=2.82s peak=8384MiB
+[040/270] 1rf8B01 L=69 time=2.13s peak=8361MiB
+[041/270] 1a91A00 L=79 time=2.80s peak=8375MiB
+[042/270] 2mj7A00 L=141 time=3.21s peak=8531MiB
+[043/270] 1tvjA00 L=166 time=2.53s peak=8604MiB
+[044/270] 4dh2A00 L=158 time=3.29s peak=8580MiB
+[045/270] 1kmdA00 L=117 time=2.90s peak=8460MiB
+[046/270] 4cqiA00 L=107 time=2.18s peak=8434MiB
+[047/270] 1bv8A00 L=138 time=3.15s peak=8521MiB
+[048/270] 1irmC00 L=196 time=3.31s peak=8709MiB
+[049/270] 1wg7A01 L=68 time=2.72s peak=8358MiB
+[050/270] 3ottA01 L=299 time=6.27s peak=9256MiB
+[051/270] 1pc6A00 L=141 time=3.14s peak=8531MiB
+[052/270] 3vu1A04 L=132 time=3.18s peak=8506MiB
+[053/270] 2lc3A00 L=88 time=2.02s peak=8391MiB
+[054/270] 1p3hB00 L=98 time=2.84s peak=8412MiB
+[055/270] 1kwgA02 L=200 time=3.58s peak=8724MiB
+[056/270] 1zl8B00 L=54 time=1.97s peak=8343MiB
+[057/270] 1aamA02 L=271 time=5.48s peak=9098MiB
+[058/270] 5a2qW01 L=68 time=2.34s peak=8359MiB
+[059/270] 2xhgA01 L=176 time=3.28s peak=8638MiB
+[060/270] 1f4sP00 L=65 time=2.82s peak=8356MiB
+[061/270] 1i5pA02 L=234 time=3.72s peak=8865MiB
+[062/270] 4tquM01 L=245 time=4.87s peak=8936MiB
+[063/270] 2b9sA02 L=87 time=2.34s peak=8390MiB
+[064/270] 3ph9A00 L=133 time=3.05s peak=8508MiB
+[065/270] 1vbkA02 L=82 time=2.84s peak=8380MiB
+[066/270] 1wpuA00 L=147 time=2.32s peak=8546MiB
+[067/270] 2hzdA00 L=82 time=2.81s peak=8380MiB
+[068/270] 3udcA03 L=88 time=2.84s peak=8391MiB
+[069/270] 4as4A01 L=144 time=1.65s peak=8541MiB
+[070/270] 1u8vA02 L=133 time=2.94s peak=8508MiB
+[071/270] 1gt7A00 L=274 time=5.63s peak=9114MiB
+[072/270] 2eyzA03 L=91 time=2.28s peak=8400MiB
+[073/270] 4wcgA00 L=61 time=2.77s peak=8350MiB
+[074/270] 1k32A01 L=272 time=4.97s peak=9104MiB
+[075/270] 1m5yA01 L=124 time=2.96s peak=8482MiB
+[076/270] 3k6yA01 L=92 time=2.85s peak=8400MiB
+[077/270] 1hezE00 L=61 time=2.24s peak=8350MiB
+[078/270] 4nwvA01 L=184 time=3.33s peak=8668MiB
+[079/270] 1k8bA00 L=52 time=2.17s peak=8343MiB
+[080/270] 3r4rA02 L=125 time=2.97s peak=8485MiB
+[081/270] 1gikA01 L=177 time=3.34s peak=8641MiB
+[082/270] 1fp3A00 L=402 time=11.64s peak=9968MiB
+[083/270] 1j2rA00 L=188 time=2.45s peak=8680MiB
+[084/270] 1sixA00 L=153 time=3.26s peak=8564MiB
+[085/270] 4omfG01 L=159 time=2.76s peak=8583MiB
+[086/270] 1ybzA00 L=76 time=2.89s peak=8370MiB
+[087/270] 3zdbA02 L=89 time=2.83s peak=8394MiB
+[088/270] 1pytA00 L=94 time=2.21s peak=8405MiB
+[089/270] 4u8uM02 L=166 time=3.36s peak=8605MiB
+[090/270] 1zu2A00 L=158 time=3.04s peak=8580MiB
+[091/270] 1ss3A00 L=50 time=2.54s peak=8342MiB
+[092/270] 1k4tA03 L=155 time=3.31s peak=8572MiB
+[093/270] 1encA00 L=135 time=2.57s peak=8515MiB
+[094/270] 2b0fA02 L=69 time=2.82s peak=8361MiB
+[095/270] 3qneA01 L=109 time=2.75s peak=8440MiB
+[096/270] 2clsA00 L=179 time=2.96s peak=8648MiB
+[097/270] 1y1uA04 L=87 time=2.84s peak=8390MiB
+[098/270] 2oi2A02 L=134 time=2.51s peak=8511MiB
+[099/270] 4ylqT01 L=105 time=2.89s peak=8429MiB
+[100/270] 4gnxC02 L=141 time=3.06s peak=8532MiB
+[101/270] 2k4qA00 L=156 time=2.16s peak=8575MiB
+[102/270] 4b8tA00 L=106 time=2.66s peak=8431MiB
+[103/270] 2pk0A00 L=247 time=4.87s peak=8951MiB
+[104/270] 1kx3G00 L=106 time=1.72s peak=8431MiB
+[105/270] 4ayoA00 L=434 time=13.95s peak=10228MiB
+[106/270] 2l1sA00 L=83 time=2.58s peak=8382MiB
+[107/270] 1f1sA01 L=275 time=4.84s peak=9121MiB
+[108/270] 2e8gA01 L=124 time=2.67s peak=8482MiB
+[109/270] 2m63A00 L=157 time=3.10s peak=8578MiB
+[110/270] 4a18L02 L=71 time=1.65s peak=8363MiB
+[111/270] 1m06G00 L=187 time=3.26s peak=8678MiB
+[112/270] 3stdA00 L=162 time=3.14s peak=8594MiB
+[113/270] 5a0wD02 L=94 time=1.58s peak=8405MiB
+[114/270] 2f40A00 L=74 time=2.55s peak=8367MiB
+[115/270] 4e9xA02 L=162 time=3.11s peak=8594MiB
+[116/270] 1fmtB01 L=201 time=2.59s peak=8728MiB
+[117/270] 2kp8A00 L=72 time=2.58s peak=8365MiB
+[118/270] 3e6uA00 L=409 time=11.06s peak=10024MiB
+[119/270] 1t4mA00 L=179 time=3.14s peak=8648MiB
+[120/270] 2d05A02 L=111 time=1.94s peak=8445MiB
+[121/270] 2ifsA00 L=169 time=3.15s peak=8615MiB
+[122/270] 3t3pB01 L=57 time=2.45s peak=8347MiB
+[123/270] 3gvdA02 L=129 time=2.31s peak=8497MiB
+[124/270] 1yrvA00 L=153 time=2.96s peak=8564MiB
+[125/270] 2mriA00 L=176 time=3.14s peak=8639MiB
+[126/270] 5b00A00 L=261 time=4.69s peak=9051MiB
+[127/270] 3ch3X00 L=256 time=4.95s peak=9015MiB
+[128/270] 1em7A00 L=56 time=2.11s peak=8345MiB
+[129/270] 5ez3A03 L=155 time=2.96s peak=8573MiB
+[130/270] 4a5uA00 L=148 time=2.90s peak=8552MiB
+[131/270] 5kcoA03 L=58 time=2.15s peak=8347MiB
+[132/270] 2ja4A00 L=101 time=2.64s peak=8420MiB
+[133/270] 1xk4D00 L=92 time=2.62s peak=8401MiB
+[134/270] 1divA02 L=90 time=2.83s peak=8396MiB
+[135/270] 2xt6B03 L=259 time=5.41s peak=9034MiB
+[136/270] 4gvbA00 L=77 time=2.20s peak=8373MiB
+[137/270] 1ta9B01 L=152 time=3.22s peak=8563MiB
+[138/270] 1i5gA00 L=144 time=2.62s peak=8542MiB
+[139/270] 2a6hC04 L=65 time=2.58s peak=8356MiB
+[140/270] 1ou5A02 L=204 time=3.65s peak=8744MiB
+[141/270] 1kuxA00 L=166 time=2.67s peak=8605MiB
+[142/270] 3sqgA01 L=103 time=2.75s peak=8425MiB
+[143/270] 1n0eA00 L=141 time=2.90s peak=8532MiB
+[144/270] 2jysA00 L=91 time=2.28s peak=8401MiB
+[145/270] 3cuqB02 L=80 time=2.62s peak=8377MiB
+[146/270] 4i1tA02 L=84 time=2.46s peak=8385MiB
+[147/270] 4aq1A03 L=115 time=2.35s peak=8457MiB
+[148/270] 1xn4A00 L=191 time=3.20s peak=8692MiB
+[149/270] 1zcdA00 L=376 time=9.96s peak=9768MiB
+[150/270] 3kr9A01 L=161 time=3.30s peak=8591MiB
+[151/270] 2d0oA03 L=151 time=2.52s peak=8560MiB
+[152/270] 2bhzA04 L=72 time=2.79s peak=8365MiB
+[153/270] 4bkmA02 L=134 time=3.02s peak=8512MiB
+[154/270] 2zvsA00 L=81 time=2.49s peak=8380MiB
+[155/270] 1vq8P01 L=55 time=2.76s peak=8344MiB
+[156/270] 2zxrA04 L=123 time=2.35s peak=8479MiB
+[157/270] 3n9kA00 L=394 time=11.32s peak=9905MiB
+[158/270] 1m55A00 L=193 time=3.23s peak=8699MiB
+[159/270] 1okrA02 L=51 time=2.77s peak=8344MiB
+[160/270] 2k60A01 L=73 time=2.27s peak=8366MiB
+[161/270] 1pp9J00 L=62 time=2.74s peak=8352MiB
+[162/270] 4aybL00 L=91 time=2.84s peak=8401MiB
+[163/270] 3vnxA00 L=195 time=2.69s peak=8706MiB
+[164/270] 4glaC00 L=89 time=2.81s peak=8395MiB
+[165/270] 1wg1A01 L=71 time=2.81s peak=8364MiB
+[166/270] 1n3tA02 L=136 time=2.38s peak=8517MiB
+[167/270] 1yj8A02 L=158 time=3.28s peak=8581MiB
+[168/270] 1efyA02 L=213 time=3.84s peak=8777MiB
+[169/270] 2wwuA01 L=284 time=4.04s peak=9171MiB
+[170/270] 2f1fA02 L=78 time=2.81s peak=8375MiB
+[171/270] 1j2nA00 L=99 time=2.84s peak=8417MiB
+[172/270] 3drxC01 L=74 time=2.21s peak=8367MiB
+[173/270] 1w9cA00 L=321 time=7.74s peak=9394MiB
+[174/270] 1nvpD01 L=51 time=2.73s peak=8344MiB
+[175/270] 1wkvA01 L=77 time=2.83s peak=8373MiB
+[176/270] 4ifdG01 L=61 time=2.22s peak=8351MiB
+[177/270] 4u77A00 L=121 time=2.95s peak=8477MiB
+[178/270] 2m68A00 L=142 time=3.21s peak=8535MiB
+[179/270] 3hrzB01 L=76 time=2.22s peak=8371MiB
+[180/270] 2if7B02 L=87 time=2.81s peak=8391MiB
+[181/270] 1x3qA00 L=57 time=2.66s peak=8347MiB
+[182/270] 4hceA00 L=129 time=2.77s peak=8498MiB
+[183/270] 1qhhD01 L=76 time=2.91s peak=8371MiB
+[184/270] 1onkB01 L=139 time=2.87s peak=8525MiB
+[185/270] 2mjhA00 L=142 time=3.17s peak=8535MiB
+[186/270] 5fl3A02 L=254 time=5.14s peak=9002MiB
+[187/270] 1c8uA01 L=156 time=2.58s peak=8576MiB
+[188/270] 3wlwA02 L=112 time=2.93s peak=8448MiB
+[189/270] 4a17T00 L=61 time=2.79s peak=8351MiB
+[190/270] 2h6oA03 L=110 time=2.19s peak=8443MiB
+[191/270] 4huzA02 L=151 time=3.24s peak=8561MiB
+[192/270] 1h7zA00 L=191 time=3.24s peak=8692MiB
+[193/270] 1eswA00 L=500 time=18.92s peak=10826MiB
+[194/270] 1r55A00 L=203 time=3.51s peak=8738MiB
+[195/270] 3cx5E01 L=55 time=1.62s peak=8345MiB
+[196/270] 3gcfA03 L=55 time=2.45s peak=8345MiB
+[197/270] 1reoA03 L=101 time=2.72s peak=8421MiB
+[198/270] 1yrxC01 L=104 time=1.76s peak=8428MiB
+[199/270] 4p2cA01 L=170 time=3.14s peak=8619MiB
+[200/270] 4r9iA02 L=100 time=2.63s peak=8420MiB
+[201/270] 3k2yA00 L=103 time=2.15s peak=8425MiB
+[202/270] 2hu9A02 L=69 time=2.82s peak=8362MiB
+[203/270] 3u61D03 L=91 time=2.83s peak=8401MiB
+[204/270] 2lrrA00 L=70 time=2.04s peak=8364MiB
+[205/270] 2kdcA00 L=121 time=2.95s peak=8477MiB
+[206/270] 1on2A01 L=72 time=2.82s peak=8366MiB
+[207/270] 2of5H00 L=100 time=2.09s peak=8420MiB
+[208/270] 4h0oA02 L=205 time=3.74s peak=8747MiB
+[209/270] 3p5bL01 L=75 time=2.78s peak=8370MiB
+[210/270] 5ljwA02 L=170 time=2.85s peak=8620MiB
+[211/270] 2aujD04 L=53 time=2.76s peak=8344MiB
+[212/270] 1f7uA02 L=125 time=2.16s peak=8487MiB
+[213/270] 2yrbA01 L=135 time=3.17s peak=8516MiB
+[214/270] 2dpoA02 L=124 time=2.89s peak=8484MiB
+[215/270] 3kljA03 L=83 time=1.67s peak=8383MiB
+[216/270] 4pytA01 L=88 time=2.53s peak=8393MiB
+[217/270] 1iojA00 L=57 time=2.48s peak=8347MiB
+[218/270] 4od9A00 L=97 time=1.77s peak=8412MiB
+[219/270] 4k2xA03 L=112 time=2.64s peak=8448MiB
+[220/270] 1v4lA00 L=135 time=2.90s peak=8516MiB
+[221/270] 2dnxA00 L=130 time=2.37s peak=8503MiB
+[222/270] 1a6aB01 L=89 time=0.98s peak=8395MiB
+[223/270] 2htjA01 L=60 time=2.51s peak=8351MiB
+[224/270] 2j0wA02 L=93 time=2.57s peak=8405MiB
+[225/270] 3et4A00 L=244 time=4.13s peak=8930MiB
+[226/270] 1cliA02 L=175 time=3.12s peak=8635MiB
+[227/270] 1h19A02 L=97 time=1.92s peak=8412MiB
+[228/270] 4nzcA02 L=97 time=2.59s peak=8412MiB
+[229/270] 4chdA00 L=135 time=2.96s peak=8516MiB
+[230/270] 3pxgA04 L=59 time=1.71s peak=8350MiB
+[231/270] 1pfjA00 L=108 time=2.66s peak=8438MiB
+[232/270] 2gjhA00 L=57 time=2.48s peak=8348MiB
+[233/270] 2i0rA01 L=344 time=8.06s peak=9544MiB
+[234/270] 3fewX01 L=52 time=2.27s peak=8344MiB
+[235/270] 3luyA02 L=74 time=2.38s peak=8368MiB
+[236/270] 5gqbA01 L=108 time=2.67s peak=8438MiB
+[237/270] 2ccmA00 L=190 time=2.41s peak=8688MiB
+[238/270] 5in3A01 L=132 time=2.88s peak=8508MiB
+[239/270] 1jh6A00 L=181 time=3.19s peak=8656MiB
+[240/270] 3ifuA02 L=116 time=2.18s peak=8460MiB
+[241/270] 5f8vA02 L=107 time=2.88s peak=8436MiB
+[242/270] 2wqpA02 L=73 time=2.62s peak=8367MiB
+[243/270] 1jb3A00 L=127 time=2.85s peak=8493MiB
+[244/270] 2lmlA00 L=87 time=2.83s peak=8391MiB
+[245/270] 1du5A00 L=206 time=2.92s peak=8750MiB
+[246/270] 2mdrA00 L=94 time=2.80s peak=8406MiB
+[247/270] 1sk7A00 L=187 time=3.27s peak=8679MiB
+[248/270] 3r20A00 L=217 time=3.07s peak=8795MiB
+[249/270] 2l9wA00 L=108 time=2.91s peak=8438MiB
+[250/270] 3mwnA00 L=133 time=2.77s peak=8509MiB
+[251/270] 4kfuA00 L=205 time=3.59s peak=8747MiB
+[252/270] 2yysA00 L=284 time=5.16s peak=9171MiB
+[253/270] 2hz8A00 L=115 time=2.90s peak=8457MiB
+[254/270] 2rjiA00 L=84 time=2.84s peak=8386MiB
+[255/270] 2zuoA05 L=55 time=1.97s peak=8345MiB
+[256/270] 3fg6A01 L=99 time=2.60s peak=8417MiB
+[257/270] 4fn5A05 L=89 time=2.62s peak=8396MiB
+[258/270] 2vhjA02 L=62 time=1.76s peak=8353MiB
+[259/270] 4f92B03 L=92 time=2.58s peak=8402MiB
+[260/270] 2bbrA01 L=89 time=2.64s peak=8396MiB
+[261/270] 1bg6A01 L=192 time=2.31s peak=8697MiB
+[262/270] 4n8nC00 L=99 time=2.61s peak=8417MiB
+[263/270] 1ztmA03 L=53 time=2.52s peak=8345MiB
+[264/270] 2lq3A01 L=75 time=1.56s peak=8370MiB
+[265/270] 1lwuB02 L=99 time=2.66s peak=8417MiB
+[266/270] 3gyrA02 L=204 time=3.45s peak=8744MiB
+[267/270] 1y5iA04 L=191 time=2.26s peak=8693MiB
+[268/270] 1no5B00 L=102 time=2.64s peak=8423MiB
+[269/270] 1kzqA01 L=129 time=2.87s peak=8499MiB
+[270/270] 3fkeA01 L=71 time=1.89s peak=8365MiB
+{
+  "summary": {
+    "full_matrix": {
+      "balanced_accuracy": {
+        "n": 270,
+        "mean": 0.8057046722930254,
+        "std": 0.09807175883530522,
+        "sem": 0.005968457174255917,
+        "paper_mean": 0.796,
+        "paper_sem": 0.007,
+        "mean_difference": 0.009704672293025407
+      },
+      "precision": {
+        "n": 270,
+        "mean": 0.4957540862593852,
+        "std": 0.18698540663962404,
+        "sem": 0.011379569460088706,
+        "paper_mean": 0.511,
+        "paper_sem": 0.012,
+        "mean_difference": -0.015245913740614792
+      },
+      "recall": {
+        "n": 270,
+        "mean": 0.7705906567631172,
+        "std": 0.1495660778611751,
+        "sem": 0.009102301631348848,
+        "paper_mean": 0.767,
+        "paper_sem": 0.01,
+        "mean_difference": 0.003590656763117206
+      },
+      "f1": {
+        "n": 270,
+        "mean": 0.5652423370222602,
+        "std": 0.13346135907905268,
+        "sem": 0.00812219965809934,
+        "paper_mean": 0.569,
+        "paper_sem": 0.008,
+        "mean_difference": -0.0037576629777397175
+      },
+      "auroc": {
+        "n": 270,
+        "mean": 0.8968747872674335,
+        "std": 0.09213675760601742,
+        "sem": 0.0056072645018001585,
+        "paper_mean": 0.889,
+        "paper_sem": 0.006,
+        "mean_difference": 0.007874787267433514
+      },
+      "rmse": {
+        "n": 270,
+        "mean": 0.1785732464381942,
+        "std": 0.039362456035579606,
+        "sem": 0.0023955227877213692,
+        "paper_mean": 0.076,
+        "paper_sem": 0.002,
+        "mean_difference": 0.1025732464381942
+      }
+    },
+    "upper_triangle_no_diagonal": {
+      "balanced_accuracy": {
+        "n": 270,
+        "mean": 0.8042027220152345,
+        "std": 0.09937716115890344,
+        "sem": 0.006047901429728628,
+        "paper_mean": 0.796,
+        "paper_sem": 0.007,
+        "mean_difference": 0.00820272201523442
+      },
+      "precision": {
+        "n": 270,
+        "mean": 0.49592592727390067,
+        "std": 0.1871648401955455,
+        "sem": 0.011390489438549988,
+        "paper_mean": 0.511,
+        "paper_sem": 0.012,
+        "mean_difference": -0.015074072726099341
+      },
+      "recall": {
+        "n": 270,
+        "mean": 0.7705906567631172,
+        "std": 0.1495660778611751,
+        "sem": 0.009102301631348848,
+        "paper_mean": 0.767,
+        "paper_sem": 0.01,
+        "mean_difference": 0.003590656763117206
+      },
+      "f1": {
+        "n": 270,
+        "mean": 0.5653333437322482,
+        "std": 0.1334943015146629,
+        "sem": 0.008124204470886326,
+        "paper_mean": 0.569,
+        "paper_sem": 0.008,
+        "mean_difference": -0.0036666562677517556
+      },
+      "auroc": {
+        "n": 270,
+        "mean": 0.89497159646006,
+        "std": 0.09425186478796024,
+        "sem": 0.005735985825699189,
+        "paper_mean": 0.889,
+        "paper_sem": 0.006,
+        "mean_difference": 0.005971596460059958
+      },
+      "rmse": {
+        "n": 270,
+        "mean": 0.17946555509611412,
+        "std": 0.039872601448856806,
+        "sem": 0.0024265692488835604,
+        "paper_mean": 0.076,
+        "paper_sem": 0.002,
+        "mean_difference": 0.10346555509611412
+      }
+    }
+  },
+  "timing": {
+    "start_utc": "2026-09-26T03:17:24.140897+00:00",
+    "end_utc": "2026-09-26T03:33:26.449064+00:00",
+    "physical_gpu": {
+      "index": 3,
+      "name": "NVIDIA GeForce RTX 5090",
+      "memory_total_mib": 32607,
+      "memory_used_mib": 11103,
+      "memory_free_mib": 21018,
+      "utilization_percent": 80
+    },
+    "cuda_visible_devices": "3",
+    "python": "3.11.13",
+    "torch": "2.8.0+cu129",
+    "torch_cuda": "12.9",
+    "weights": "/data/user/sunxc/local_esmdynamic_training/02_mdcath_finetune_from_rcsb_best/checkpoint_best.pt",
+    "weights_size_bytes": 465417429,
+    "data_dir": "/bigdat2/user/sunxc/mdcath_test_data",
+    "test_csv": "/data/user/sunxc/Projects/esmdynamic/reproduction/mdcath_release/test.csv",
+    "n_test_proteins": 270,
+    "temperature_kelvin": 320,
+    "temperature_index": 0,
+    "classification_threshold": 0.5,
+    "batch_size": 1,
+    "chunk_size": 128,
+    "num_recycles": 3,
+    "model_load_seconds": 51.89773742854595,
+    "model_load_peak_gpu_memory_mib": 8300.232421875,
+    "inference_seconds_sum": 859.9691511206329,
+    "inference_seconds_mean_per_protein": 3.185070930076418,
+    "inference_seconds_this_process": 909.9277899442241,
+    "total_wall_seconds_this_process": 962.3080268278718,
+    "peak_gpu_memory_allocated_mib": 10825.5830078125,
+    "resumed": false
+  }
+}
