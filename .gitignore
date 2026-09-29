@@ -1,5 +1,8 @@
 # tensor dumps
 *.pt
+
+# Local dataset archives (download separately; too large for regular GitHub)
+reproduction/mdcath_release/*.tar.xz
 # Compiler Output #
 ###################
 *.py[cod]
